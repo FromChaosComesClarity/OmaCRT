@@ -1,0 +1,21 @@
+[Unit]
+Description=OmaCRT gamepad-to-keyboard input daemon
+# Needs the graphical (Hyprland) session up: it talks to Hyprland's IPC
+# socket to know when a fullscreen app has taken the controller over.
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+# Assumes the standard clone location documented in the repo's README/SETUP.md.
+# Update this path if the repo lives somewhere else on a given machine.
+ExecStart=/usr/bin/python3 -u %h/Documents/DEVELOPMENT/CLAUDE/OmaCRT/daemon/omacrt_input.py --layout xbox
+Restart=on-failure
+RestartSec=2
+# Grants /dev/uinput + /dev/input/eventN access directly, so this never
+# depends on interactive-login group refresh (see docs/SETUP.md — that
+# dependency is exactly what bit us in development).
+SupplementaryGroups=input
+
+[Install]
+WantedBy=graphical-session.target
