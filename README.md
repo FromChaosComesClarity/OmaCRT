@@ -33,10 +33,17 @@ first-connection driver-binding gotcha, in `docs/SETUP.md`.
 
 [`daemon/omacrt_input.py`](daemon/omacrt_input.py) — the gamepad-to-keyboard
 daemon — is built and verified working end to end against that controller:
-D-pad/stick navigation, confirm/back, and a Guide-button launcher toggle, all
-as synthetic keys any keyboard-navigable surface can already use. It also
-hands the controller off to games/fullscreen apps automatically, the same
-way keyboard/mouse input naturally does.
+D-pad/stick navigation, confirm/back, a Guide-button launcher toggle, and a
+Select-button toggle for [`plugins/org.omacrt.cheatsheet`](plugins/org.omacrt.cheatsheet)
+(the Meta+K equivalent for the pad), all as synthetic keys any
+keyboard-navigable surface can already use. It also hands the controller off
+to games/fullscreen apps automatically, the same way keyboard/mouse input
+naturally does.
+
+**Running on the actual CRT now (2026-09-20)** — the composite adapter's
+EDID auto-detects, but its "preferred" mode is 1280x720, not our 720×480
+target, so `config/monitors.lua` forces it. User's verdict on the real tube:
+"it looks great." See `docs/SETUP.md` for the forcing recipe.
 
 Not started: the real launcher UI (still just the placeholder overlay), the
 burn-in screensaver. See [`docs/RESEARCH.md`](docs/RESEARCH.md) for the

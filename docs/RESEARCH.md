@@ -22,6 +22,15 @@ doc can be read as "what we're building," not just "what we considered."
    pad first; the other two are a glyph-set + button-index remap on top of the
    same daemon, not a separate input path.
 
+**Confirmed on the real CRT (2026-09-20):** the composite adapter ships a
+real EDID (`HJW MACROSILICON`), so Hyprland auto-detected it with no manual
+mode-forcing needed just to see it — but its EDID's "preferred" mode is
+1280x720, not 720×480, so that override is still required (`config/monitors.lua`,
+`docs/SETUP.md`). Once forced to the real target resolution, the user's own
+verdict on the actual tube: **"it looks great."** The bar curation and
+`base-size 28` text scaling from earlier in this doc held up on real
+hardware, not just in the framebuffer.
+
 ## 1. Platform facts
 
 ### The machine

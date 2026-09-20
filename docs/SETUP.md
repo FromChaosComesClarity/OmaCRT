@@ -21,6 +21,25 @@ Omarchy install with no prior customization of its own; back up first if the
 target machine already has one worth keeping (see the omarchy skill's own
 guidance on this).
 
+## Display: forcing the CRT's actual resolution
+
+**Confirmed working on the real hardware (2026-09-20).** The HDMI→composite
+adapter (identifies as `HJW MACROSILICON` — a common converter chipset) ships
+a real EDID, so Hyprland auto-detects it without any manual mode-forcing
+needed to see it at all — but its EDID's "preferred" mode is **1280x720**,
+not the 720×480 this project targets. `config/monitors.lua` in this repo
+has the working override:
+
+```lua
+hl.monitor({ output = "HDMI-A-2", mode = "720x480@60", position = "auto", scale = 1 })
+```
+
+Apply it: back up `~/.config/hypr/monitors.lua` first (it may have other
+machine-specific monitor rules worth keeping), merge this rule in, then
+`hyprctl reload && hyprctl configerrors` (must come back clean). The output
+name (`HDMI-A-2` here) is specific to which physical port the adapter is
+plugged into on this machine — check yours with `hyprctl monitors`.
+
 ## Gamepad daemon prerequisites
 
 ```bash
