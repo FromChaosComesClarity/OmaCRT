@@ -31,9 +31,17 @@ driver (Xbox-Wireless-protocol-over-Bluetooth pads lose those buttons on
 Linux's generic driver otherwise). Full install recipe, including a
 first-connection driver-binding gotcha, in `docs/SETUP.md`.
 
-Not started: the real launcher UI, the gamepad daemon, the burn-in screensaver.
-See [`docs/RESEARCH.md`](docs/RESEARCH.md) for the brainstorm, the options
-considered, and the hardware/software facts they're based on.
+[`daemon/omacrt_input.py`](daemon/omacrt_input.py) — the gamepad-to-keyboard
+daemon — is built and verified working end to end against that controller:
+D-pad/stick navigation, confirm/back, and a Guide-button launcher toggle, all
+as synthetic keys any keyboard-navigable surface can already use. It also
+hands the controller off to games/fullscreen apps automatically, the same
+way keyboard/mouse input naturally does.
+
+Not started: the real launcher UI (still just the placeholder overlay), the
+burn-in screensaver. See [`docs/RESEARCH.md`](docs/RESEARCH.md) for the
+brainstorm, the options considered, and the hardware/software facts they're
+based on.
 
 ## Hardware profile
 

@@ -155,6 +155,25 @@ indie/open-source projects for exactly this) covers all three layouts and is
 worth checking against its license terms before vendoring assets into a
 public GPL-3.0 repo.
 
+**Built and verified working (2026-09-20), `daemon/omacrt_input.py`:** D-pad
++ left stick (deadzone + auto-repeat) → arrow keys, A/B → Enter/Esc per the
+layout table above, Guide → a dedicated toggle-launcher key. Confirmed live
+against a real 8BitDo SN30 Pro — including, by accident, interrupting a
+running Claude Code turn through the mapped Escape key, about as real an
+end-to-end proof as it gets.
+
+**Option B's "leaking to whatever has focus" con, closed:** the daemon
+watches Hyprland's focused window over its event socket
+(`.socket2.sock`) and stops emitting synthetic keys the instant that window
+is fullscreen — the same handoff normal keyboard/mouse get for free from
+window-manager focus routing, which raw-evdev gamepad reading otherwise
+bypasses entirely. Heuristic is "fullscreen ⇒ an app took the controller
+over," not a maintained list of known game window classes — matches common
+couch-gaming/HTPC convention and needs no upkeep. The Guide button is the one
+exception, always active, same as a console's Home button. This was already
+flagged as a theoretical risk of B vs. C in the table above; it's now a
+solved problem rather than a reason to prefer C.
+
 ## 3. CRT burn-in — options
 
 CRT phosphor burn-in is real but slower than plasma; the standard countermeasures
