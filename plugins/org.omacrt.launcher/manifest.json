@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "org.omacrt.launcher",
+  "name": "OmaCRT launcher (placeholder)",
+  "version": "0.1.0",
+  "author": "OmaCRT",
+  "description": "Placeholder full-screen overlay. Proves the plugin-loading pipeline before the real gamepad-navigable launcher is built.",
+  "kinds": [
+    "overlay"
+  ],
+  "entryPoints": {
+    "overlay": "Launcher.qml"
+  }
+}

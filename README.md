@@ -16,8 +16,18 @@ path, not a replacement.
 
 ## Status
 
-Pre-implementation. See [`docs/RESEARCH.md`](docs/RESEARCH.md) for the brainstorm,
-the options considered, and the hardware/software facts they're based on.
+First real milestone done: `plugins/org.omacrt.launcher` is a placeholder
+full-screen overlay plugin, proven working end-to-end on this machine — loads,
+gets a real layer-shell surface (`hyprctl layers` shows it), reads the active
+Omarchy theme's colors/typography live, and draws the broadcast safe-area
+margin. See [`docs/PLUGIN_NOTES.md`](docs/PLUGIN_NOTES.md) for the (undocumented
+elsewhere) gotchas that took to get there. The stock bar is also curated down
+to clock/network/volume on this machine already (`~/.config/omarchy/shell.json`,
+not yet captured as a repo file).
+
+Not started: the real launcher UI, the gamepad daemon, the burn-in screensaver.
+See [`docs/RESEARCH.md`](docs/RESEARCH.md) for the brainstorm, the options
+considered, and the hardware/software facts they're based on.
 
 ## Hardware profile
 
