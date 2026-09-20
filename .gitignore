@@ -1,0 +1,14 @@
+# Python (gamepad daemon prototyping)
+__pycache__/
+*.pyc
+.venv/
+
+# Rust (if the daemon moves to Rust later)
+target/
+
+# Editors / OS
+.DS_Store
+*.swp
+
+# Local-only credentials or machine-specific overrides
+*.local.json
