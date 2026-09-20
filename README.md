@@ -21,9 +21,15 @@ full-screen overlay plugin, proven working end-to-end on this machine — loads,
 gets a real layer-shell surface (`hyprctl layers` shows it), reads the active
 Omarchy theme's colors/typography live, and draws the broadcast safe-area
 margin. See [`docs/PLUGIN_NOTES.md`](docs/PLUGIN_NOTES.md) for the (undocumented
-elsewhere) gotchas that took to get there. The stock bar is also curated down
-to clock/network/volume on this machine already (`~/.config/omarchy/shell.json`,
-not yet captured as a repo file).
+elsewhere) gotchas that took to get there. The stock bar is curated down to
+clock/bluetooth/network/volume and captured in [`config/shell.json`](config/shell.json)
+— see [`docs/SETUP.md`](docs/SETUP.md) for how to apply it on a fresh install.
+
+A gamepad is connected and fully working: an 8BitDo SN30 Pro over Bluetooth,
+including Start/Select/Guide/thumbstick-clicks — which needed the `xpadneo`
+driver (Xbox-Wireless-protocol-over-Bluetooth pads lose those buttons on
+Linux's generic driver otherwise). Full install recipe, including a
+first-connection driver-binding gotcha, in `docs/SETUP.md`.
 
 Not started: the real launcher UI, the gamepad daemon, the burn-in screensaver.
 See [`docs/RESEARCH.md`](docs/RESEARCH.md) for the brainstorm, the options
