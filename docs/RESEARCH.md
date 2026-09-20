@@ -162,6 +162,15 @@ against a real 8BitDo SN30 Pro — including, by accident, interrupting a
 running Claude Code turn through the mapped Escape key, about as real an
 end-to-end proof as it gets.
 
+**New requirement (2026-09-20):** OmaCRT needs a controller equivalent of
+Omarchy's Meta+K shortcuts cheatsheet — an overlay listing what each button
+currently does, using the active layout's real glyphs (ties directly into
+the Xelu's-Controller-Prompts glyph work above, not generic text labels).
+Not designed or built yet — tracked as task #4. Likely shape: another
+overlay plugin like `plugins/org.omacrt.launcher`, summoned by a held button
+(Select/Back is the common console convention) with the daemon emitting
+whatever triggers it.
+
 **Option B's "leaking to whatever has focus" con, closed:** the daemon
 watches Hyprland's focused window over its event socket
 (`.socket2.sock`) and stops emitting synthetic keys the instant that window
