@@ -192,6 +192,27 @@ exception, always active, same as a console's Home button. This was already
 flagged as a theoretical risk of B vs. C in the table above; it's now a
 solved problem rather than a reason to prefer C.
 
+**New conflict found (2026-09-20): Steam grabs the pad exclusively while
+running, independent of our own fullscreen-gate.** Steam's own controller
+support ("Steam Input") takes an exclusive hold of a detected Xbox-protocol
+controller the moment Steam is running in the background — not just while
+Steam has focus or is in Big Picture. Confirmed directly: with Steam running,
+*nothing* could read the pad, not even a raw, unprivileged `evdev` read with
+no daemon involved — meaning this is a kernel-level exclusive grab, not
+something our own focus-gating logic could ever detect or work around (it
+happens regardless of window focus/fullscreen state). Symptom looked like a
+bug in the daemon/keybind chain at first (nothing responded, Guide opened
+Steam's own overlay instead of the launcher) — wasted real debugging time
+before finding the actual cause. **Fix: disable Steam Input for this
+controller** — Steam's own Settings → Controller → General Controller
+Settings → uncheck "Xbox Configuration Support" (and any other checked
+controller-type boxes). Doesn't lose game controller support: the pad
+already presents as a native Xbox controller via `xpadneo`, so any game with
+native Linux gamepad support (most do, via SDL2) reads it directly once
+Steam Input stops intercepting it. **Worth remembering when debugging "the
+gamepad stopped responding" in the future: check whether Steam is running
+before assuming it's our own code.**
+
 ## 3. CRT burn-in — options
 
 CRT phosphor burn-in is real but slower than plasma; the standard countermeasures
