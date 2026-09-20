@@ -2,7 +2,7 @@
 
 A gamepad-first interface for Omarchy, built to drive a Tube TV.
 
-The target machine is a modest 4 GB RAM / dual-core Haswell laptop, output through
+The target machine is a modest 4 GB RAM / dual-core Haswell Mac Mini, output through
 a composite adapter to a CRT — 720×480, genuinely interlaced (480i; composite
 can't carry progressive scan). OmaCRT is not a new desktop shell — it is a set
 of plugins for `omarchy-shell` (Omarchy's built-in Quickshell instance): a
@@ -33,6 +33,7 @@ considered, and the hardware/software facts they're based on.
 
 | | |
 |---|---|
+| Model | Mac Mini (`Macmini7,1`, late-2014) |
 | CPU | Intel Core i5-4260U (Haswell-ULT, 2C/4T @ 1.4 GHz) |
 | RAM | 4 GB (3.7 GiB usable) |
 | GPU | Intel HD Graphics 5000 (`i915`) |
