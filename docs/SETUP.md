@@ -3,6 +3,24 @@
 System-level prerequisites, outside the git repo (udev rules and group
 membership are per-machine, not project files). Run once per machine.
 
+## Bar / idle config
+
+`config/shell.json` in this repo is the canonical, working copy of
+`~/.config/omarchy/shell.json` on the dev machine — curated bar (menu, clock,
+bluetooth, network, audio) plus the OmaCRT launcher plugin entry. To apply it
+on a fresh install:
+
+```bash
+cp ~/.config/omarchy/shell.json ~/.config/omarchy/shell.json.bak.$(date +%s)  # back up first
+cp config/shell.json ~/.config/omarchy/shell.json
+omarchy-shell shell reloadConfig
+```
+
+This **replaces** the file outright rather than merging — fine for a fresh
+Omarchy install with no prior customization of its own; back up first if the
+target machine already has one worth keeping (see the omarchy skill's own
+guidance on this).
+
 ## Gamepad daemon prerequisites
 
 ```bash
