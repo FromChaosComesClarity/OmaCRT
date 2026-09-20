@@ -3,14 +3,37 @@
 Written before any code exists. Facts gathered from this machine and from the web
 on 2026-09-20; options laid out for a decision, not yet a plan.
 
+## 0. Decisions (resolved 2026-09-20)
+
+Three open questions from §6 got answered; recorded here so the rest of the
+doc can be read as "what we're building," not just "what we considered."
+
+1. **Adapter is composite** (single yellow RCA), not component. The real
+   target is **480i**, not 480p — composite cannot carry progressive scan at
+   all. This is a materially bigger constraint than the rest of the doc
+   assumed; see the rewritten §1 and §4 below.
+2. **Bar scope:** clock, network status, and volume. Nothing else needs to
+   survive the cut to 720px-wide TV scale for the first version.
+3. **Gamepad layout:** build a settings option covering **Xbox / PlayStation /
+   Nintendo** face-button layouts, each with its own button glyphs shown in
+   the UI, **defaulting to Xbox**. Tune the input daemon against an Xbox-layout
+   pad first; the other two are a glyph-set + button-index remap on top of the
+   same daemon, not a separate input path.
+
 ## 1. Platform facts
 
 ### The machine
 - Intel i5-4260U, 2 cores / 4 threads @ 1.4 GHz, Intel HD Graphics 5000 (`i915`).
 - 4 GB RAM total (3.7 GiB usable), ~1.1 GiB free / 1.8 GiB buff-cache at idle
   with the stock shell already running.
-- The GPU already advertises a `720x480@60Hz` mode (`hyprctl monitors`), so the
-  480p target is a real, already-negotiated EDID mode, not something to force.
+- The GPU already advertises a `720x480@60Hz` mode (`hyprctl monitors`) — a
+  real, already-negotiated EDID mode. What the CRT actually displays through
+  a **composite** adapter is still interlaced (see below): the adapter can
+  take that progressive digital frame and re-encode it to NTSC composite,
+  but NTSC composite itself is defined as 480 interlaced lines at 60
+  fields/sec (30 full frames/sec) — there is no progressive composite. So
+  "720×480" is the right frame size to design for, but the *display*, not
+  just the signal, is interlaced.
 
 ### Omarchy 4.0.4 does not use waybar
 `omarchy-shell` (`/usr/share/omarchy/bin`, config at `/usr/share/omarchy/shell`)
@@ -33,8 +56,48 @@ Layout and per-widget settings persist in `~/.config/omarchy/shell.json`.
 A full-screen gamepad launcher is an `overlay` plugin; burn-in protection is
 another `overlay` (or a `service` that drives DPMS/dimming) wired to the
 existing `idle.screensaver` / `idle.lock` timers already in `shell.json`; the
-status readout is either a curated `bar-widget` set or, if the existing bar
-can't be made legible at 720px wide, a `bar` replacement plugin.
+status readout is **the stock `omarchy.bar`, curated and rescaled** (§4) —
+skip building a `bar` replacement plugin unless testing on the real screen
+shows the stock bar genuinely can't be made legible, since replacing it means
+losing every first-party widget's polish for free.
+
+### The shell already has a theme-driven design-token system — use it, don't reinvent one
+Read in full this session: `Commons/Color.qml` and `Commons/Style.qml`, the
+two singletons every first-party bar widget and panel already consumes.
+
+- **`Color`** loads `~/.local/state/omarchy/current/theme/{colors.toml,shell.toml}`
+  at startup and on theme-switch IPC, exposing both the foundational palette
+  (`Color.foreground`, `.background`, `.accent`, `.urgent`, `.muted`) and
+  per-surface roles (`Color.bar.*`, `.popups.*`, `.menu.*`, `.lock.*`, etc.),
+  each with a sane fallback to the foundational palette when a theme doesn't
+  define that surface. A plugin QML file that imports `Commons` and reads
+  `Color.foreground` etc. is automatically correct for whatever theme is
+  active and repaints live when the user switches themes — no separate
+  "follow Omarchy's theme" work needed beyond using these tokens instead of
+  hardcoded colors.
+- **`Style`** is the typography/spacing scale: `[font] base-size` in
+  `shell.toml` (12 by default) is the rem root, and every `Style.font.<token>`
+  (`caption`/`bodySmall`/`body`/`subtitle`/`title`/`heading`/`display`/
+  `displayLarge`, plus `icon`/`iconSmall`/`iconLarge`) is a fixed multiplier
+  of it. `[spacing] scale` does the same for margins/gaps/padding/control
+  sizing. **`[bar] size-horizontal`/`size-vertical` scale with `base-size`
+  too** (`scale-with-font = true` by default) — meaning the bar's own height
+  already grows when text does, without any per-plugin work.
+- There is already a first-class CLI for this: **`omarchy display text size
+  [size|reset]`** — "Scale text everywhere: omarchy shell, GTK apps, and
+  terminals." It writes `[font] base-size` to `~/.config/omarchy/shell.toml`
+  (a machine-level override layered on top of whatever theme is active,
+  live-reloaded, survives theme switches).
+
+**This changes §4's recommendation below:** the "TV scale" OmaCRT needs isn't
+a bespoke thing to build — it's tuning `base-size` (via `omarchy display text
+size`, or an OmaCRT settings affordance that just calls the same mechanism)
+for the couch/CRT viewing distance, and writing every OmaCRT widget against
+`Style.font.*`/`Color.*` tokens instead of literal `px`/hex values so it
+inherits that scale automatically. The one caveat: this setting is global and
+machine-wide, not per-output — fine if this box lives permanently on the TV,
+awkward if the same machine is ever also used with a normal monitor for
+editing OmaCRT's own QML.
 
 ### Prior art
 [`tv-shell`](https://github.com/jedwards1230/tv-shell) (jedwards1230) is close
@@ -47,15 +110,12 @@ That's the shape worth copying (daemon-owns-the-device, shell-consumes-synthetic
 not the project itself (it's built for game streaming, has no CRT/burn-in
 concerns, and is a much bigger codebase than this needs).
 
-### The adapter question — needs an answer before the density work
-480p **requires a component connection** (the 5-cable Y/Pb/Pr + L/R kind).
-Composite (single yellow RCA) tops out at 480i — interlaced, not progressive —
-and interlace flicker on thin UI elements is worse than anything the progressive
-density work below assumes.
-
-**Open question for you:** is the adapter HDMI→component, or HDMI→composite?
-If it's composite, the target is really 480i and the "avoid thin hairlines"
-guidance in §4 gets stricter, not optional.
+### No existing gamepad/controller convention to align with
+Grepped the whole shell source and Omarchy's `bin`/`config` trees for
+"gamepad", "joystick", "controller" — the only hits were the `PanelController`
+QML class name and a 🎮 emoji entry, both unrelated. OmaCRT's gamepad daemon
+is genuinely new territory here, not a second implementation of something
+Omarchy already half-does.
 
 ## 2. Gamepad input — options
 
@@ -81,6 +141,18 @@ Either B or C needs `uinput` device access — a udev rule (`KERNEL=="uinput",
 GROUP="input", MODE="0660"` + user in `input` group) rather than running the
 daemon as root.
 
+**Multi-layout decision (§0.3):** the daemon reads a controller-layout setting
+(Xbox default, PlayStation, Nintendo) that does two things — remaps which
+physical button index means "confirm"/"back" (Nintendo swaps A/B and X/Y
+position *and* color relative to Xbox; PlayStation's face buttons are
+shapes, not letters, and its confirm/back convention is also swapped from
+Xbox's), and picks which glyph set the QML side renders for on-screen button
+hints. Glyphs: don't hand-draw three icon sets from scratch — Xelu's
+"Controller Prompts" pack (free, CC0-style with attribution, widely used in
+indie/open-source projects for exactly this) covers all three layouts and is
+worth checking against its license terms before vendoring assets into a
+public GPL-3.0 repo.
+
 ## 3. CRT burn-in — options
 
 CRT phosphor burn-in is real but slower than plasma; the standard countermeasures
@@ -101,43 +173,52 @@ overlay," `idle.lock` as today, and add a much longer third timeout for DPMS-off
 as a belt-and-suspenders measure, not the primary one. Apply pixel-shift to
 whatever chrome stays on screen during active use (the bar, if it's persistent).
 
-## 4. Screen density / readability at 720×480 — options
+## 4. Screen density / readability at 720×480 (really 480i — §0.1) — options
 
-This is a distinct scale from the desktop's `GDK_SCALE=2` on the current 1080p
-panel — 720×480 needs its own "TV scale," not a bigger desktop scale.
+**Superseded by the §1 finding on `Color`/`Style`: don't build a bespoke
+scale mechanism.** Every OmaCRT widget should be written against
+`Style.font.*` (caption/body/title/heading/display/…) and `Color.*` tokens
+from Commons, exactly like first-party widgets are, so it inherits whatever
+`[font] base-size` is set to. The only OmaCRT-specific work here is (a)
+figuring out, once, what `base-size` reads well from a couch on this specific
+TV, and (b) not hardcoding pixel sizes or hex colors anywhere that would
+bypass that inheritance.
 
-Facts driving this (10-foot UI convention + broadcast safe-area standard):
+Facts that still apply regardless of the token mechanism (10-foot UI
+convention + broadcast safe-area standard + interlace):
 - Viewing distance for a TV is assumed ~10 ft — minimum body text ~24sp
-  equivalent, oversized focus indicators, low density, generous spacing.
+  equivalent, oversized focus indicators, low density, generous spacing. This
+  is what tuning `base-size` up is *for*.
 - Broadcast **safe-area** standard: keep all interactive content inside the
   **93%** "action-safe" rectangle, keep text inside the **90%** "title-safe"
   rectangle — i.e. at minimum a ~5% margin on every edge before anything
   important is placed, because overscan on real CRTs isn't consistent set to
-  set. At 720×480 that's roughly 36px/24px of margin — not optional whitespace,
-  it's where a real TV crops the picture.
-- Thin 1px hairlines and fine serif/thin-weight text shimmer on an analog
-  signal (worse still if the adapter turns out to be composite/480i, per §1)
-  — use ≥2–3px borders, bold/flat iconography, avoid fine detail.
-- Avoid strongly saturated red (or red/cyan adjacency) in text on an analog
-  path — composite/component chroma channels bleed most on red, which is
-  exactly the "avoid thin red text on black" problem CRT/retro UI designers
-  flag.
+  set. At 720×480 that's roughly 36px/24px of margin — not optional
+  whitespace, it's where a real TV crops the picture. This is a layout margin
+  OmaCRT's overlay/launcher needs to apply itself; nothing in the shell's
+  token system does it automatically.
+- **Confirmed composite → real 480i** (§0.1) makes the interlace-flicker
+  guidance load-bearing, not just a nice-to-have: the CRT's own interlaced
+  scan (odd lines one pass, even lines the next, 60 fields/sec) means any
+  single-scanline-thin horizontal detail is only re-lit 30 times/sec instead
+  of 60, which reads as visible twitter — this happens from the *display's*
+  scanning method itself, independent of how cleanly the source frame was
+  rendered. Practical floor: no border, divider, or icon stroke thinner than
+  ~2 scanlines (≈4px at 480 lines); avoid fine repeating horizontal patterns
+  entirely; prefer bold/flat fills over hairline outlines.
+- Avoid strongly saturated red (or red/cyan adjacency) in text on the analog
+  path — composite chroma bleeds most on red, which is exactly the "avoid
+  thin red text on black" problem CRT/retro UI designers flag. Worth checking
+  each Omarchy theme's `red`/`urgent` token against this before using it for
+  small text on OmaCRT surfaces (fine for large fills, risky for a thin
+  glyph).
 
-**Options for how far to take it:**
-
-1. **One fixed "TV scale" profile** — a single hardcoded font/icon/spacing
-   scale used by every OmaCRT plugin, tuned once by eye against the real
-   hardware. Simple, no settings surface, but "tuned once" only holds if the
-   adapter and TV don't change.
-2. **A scale token exposed as a setting** (like the bar widgets' existing
-   `schema` mechanism in Omarchy's plugin manifests) — same idea, but a slider
-   in Setup so it can be nudged without editing QML. More work, but this is
-   exactly the kind of thing that's annoying to get right on the first try
-   without the TV in front of you.
-
-**Recommendation:** 2, using the manifest `schema` mechanism Omarchy plugins
-already support for per-widget settings — cheap to add once, and this project
-will almost certainly need to tune it live against the actual screen.
+**Remaining open decision:** whether `base-size` gets tuned once by eye and
+left alone, or exposed as an OmaCRT setting that calls `omarchy display text
+size` under the hood so it's adjustable from the couch without a keyboard.
+Leaning toward the latter, same reasoning as before — this needs tuning
+against the real screen, and "adjustable from the couch" is itself a
+gamepad-UX nicety worth having once the launcher exists to host the setting.
 
 ## 5. RAM/CPU budget — constraints to hold to
 
@@ -157,12 +238,12 @@ RSS with ~1.1 GiB free. Rules of thumb for everything we add:
 
 ## 6. Open questions for you
 
-1. **Adapter type** — component (true 480p) or composite (480i in practice)?
-   Changes how strict §4's hairline/flicker guidance needs to be.
-2. **Status bar scope** — the current bar has room for a lot of widgets at
-   1920px wide; 720px wide at TV scale will not fit all of it. What actually
-   needs to stay visible on the TV (clock? network? volume? all three?), so
-   the bar work is "curate + rescale the existing bar" rather than "guess and
-   redo"?
-3. **Gamepad model** — which pad(s) should the nav be tuned against first? Button
-   mapping conventions differ (Xbox-layout vs. PlayStation-layout face buttons).
+All three original questions are resolved — see §0. What's left, smaller and
+not blocking:
+
+1. **`base-size` as a setting vs. a one-time tune** (§4) — worth a real
+   decision once there's a launcher UI to host the setting in, not before.
+2. **Xelu's Controller Prompts license terms** (§2) — confirm before vendoring
+   the glyph assets into a public GPL-3.0 repo; if the terms don't fit, the
+   fallback is drawing a minimal bold glyph set by hand for the three
+   layouts, which is more work but zero licensing risk.

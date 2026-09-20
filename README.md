@@ -3,7 +3,8 @@
 A gamepad-first interface for Omarchy, built to drive a Tube TV.
 
 The target machine is a modest 4 GB RAM / dual-core Haswell laptop, output through
-an adapter to a CRT running at 480p. OmaCRT is not a new desktop shell — it is a set
+a composite adapter to a CRT — 720×480, genuinely interlaced (480i; composite
+can't carry progressive scan). OmaCRT is not a new desktop shell — it is a set
 of plugins for `omarchy-shell` (Omarchy's built-in Quickshell instance): a
 gamepad-navigable app launcher, a TV-legible status readout, and a burn-in-aware
 idle screensaver, all themed off Omarchy's existing theme system. Once the shell
@@ -27,7 +28,7 @@ the options considered, and the hardware/software facts they're based on.
 | GPU | Intel HD Graphics 5000 (`i915`) |
 | OS | Omarchy 4.0.4 |
 | Shell | `omarchy-shell` — a single long-running Quickshell instance, plugin-based |
-| Output | HDMI out → adapter → CRT TV, target 480p |
+| Output | HDMI out → composite adapter → CRT TV, 720×480i |
 
 Every design choice here is shaped by the RAM ceiling and the CPU headroom — see
 `docs/RESEARCH.md` for what that rules in and out.
