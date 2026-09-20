@@ -38,6 +38,9 @@
   "plugins": [
     {
       "id": "org.omacrt.launcher"
+    },
+    {
+      "id": "org.omacrt.cheatsheet"
     }
   ]
 }

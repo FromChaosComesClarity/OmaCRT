@@ -1,0 +1,19 @@
+[Unit]
+Description=Fix /dev/uinput permissions for OmaCRT (early-boot static-node timing workaround)
+# uinput gets auto-loaded very early in boot (likely via kmod's static-node
+# mechanism) -- before systemd-udevd has processed custom rules in
+# /etc/udev/rules.d/, so 60-omacrt-uinput.rules never gets a chance to
+# apply to that first device node. A clean module unload+reload creates a
+# fresh uevent udev evaluates normally, which is the only thing that's
+# reliably fixed this in testing (a plain `udevadm trigger` did not).
+After=systemd-udevd.service
+Before=graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/modprobe -r uinput
+ExecStart=/usr/bin/modprobe uinput
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -36,10 +36,31 @@ sudo udevadm control --reload-rules
 # running kernel module reload is the reliable way to get udev to
 # re-apply permissions to the existing node rather than a fresh one:
 sudo modprobe -r uinput && sudo modprobe uinput
-# (if that no-ops because uinput is built-in rather than a module on some
-# kernel config, a reboot forces it instead)
 
 sudo usermod -aG input "$USER"
+```
+
+**This does not persist across reboots** — confirmed directly: `/dev/uinput`
+reverted to `root:root` after a reboot on this machine, breaking the daemon
+again from a clean boot. `uinput` gets auto-loaded very early (before
+`systemd-udevd` has processed `/etc/udev/rules.d/`, likely via kmod's
+static-node mechanism), so our rule never gets a chance to apply to that
+first device node — a plain `udevadm trigger` does **not** fix it, only an
+actual module unload+reload does. **Permanent fix:**
+`system/omacrt-uinput-fix.service` in this repo is a oneshot system service
+that does exactly that reload, ordered after `systemd-udevd.service` and
+before `graphical.target` — i.e. before any user session (and thus this
+daemon) can possibly have the device open already.
+
+```bash
+sudo cp system/omacrt-uinput-fix.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable omacrt-uinput-fix.service
+# takes effect on next boot; to test without rebooting, stop the daemon
+# first so modprobe -r isn't fighting an open file handle:
+systemctl --user stop omacrt-input.service
+sudo systemctl start omacrt-uinput-fix.service
+systemctl --user start omacrt-input.service
 ```
 
 **The group membership needs a fresh login (or reboot) to take effect** —
@@ -58,6 +79,57 @@ python3 -c "import evdev"        # no output = ok
 ls -l /dev/uinput                 # expect: crw-rw---- root input
 groups                            # expect "input" listed (after a fresh login)
 ```
+
+## Hyprland keybinds (F13/F14 -> shell IPC)
+
+`config/bindings.lua` in this repo is the canonical copy of
+`~/.config/hypr/bindings.lua` — includes the two OmaCRT-specific binds. The
+daemon only *emits* F13 (Guide) / F14 (Select) as synthetic keys; these
+binds are what actually make them summon the launcher / cheatsheet:
+
+```bash
+cp ~/.config/hypr/bindings.lua ~/.config/hypr/bindings.lua.bak.$(date +%s)  # back up first
+cp config/bindings.lua ~/.config/hypr/bindings.lua
+hyprctl reload && hyprctl configerrors   # must come back clean
+```
+
+## Gamepad daemon as a systemd --user service
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp daemon/omacrt-input.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now omacrt-input.service
+```
+
+**`SupplementaryGroups=` does not work in a `--user` unit** — that's a
+system/PID1-only feature; declaring it makes the service fail outright
+(`systemd exit 216/GROUP`) rather than being ignored. Confirmed by hitting it
+directly — see the comment in `daemon/omacrt-input.service`. The service
+instead depends on the graphical login session itself already having the
+`input` group (the section above).
+
+**A stale systemd `--user` manager is a real failure mode, not just a
+theoretical one.** Systemd reuses one user-manager instance per UID across
+logins unless every session for that UID fully ends — confirmed directly on
+this machine: after `usermod -aG input`, an ordinary desktop logout/login did
+**not** replace the manager (something kept another session alive through
+it), so the manager kept stale credentials and every `--user` service it
+spawned lacked the `input` group, even though a fresh `newgrp input` in a
+plain shell worked fine. Diagnose with:
+
+```bash
+UPID=$(pgrep -u "$USER" -f "^/usr/lib/systemd/systemd --user$" | head -1)
+grep -i groups /proc/$UPID/status   # must include "input"
+```
+
+If it's missing, the only fix that reliably worked was a full reboot —
+**always ask the user to run that themselves**, never issue a
+reboot/shutdown command directly: it can leave the tool call hanging if the
+machine powers off mid-command, and resuming the session can then retry that
+same pending command, causing an unwanted second reboot (hit exactly this
+once — see the project's `feedback-no-direct-reboot-commands` note if
+you're an assistant reading this).
 
 ## Controller driver: xpadneo (for Xbox-Wireless-protocol pads over Bluetooth)
 

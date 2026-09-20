@@ -53,12 +53,10 @@ LAYOUTS = {
     "nintendo": {"confirm": ecodes.BTN_EAST, "back": ecodes.BTN_SOUTH},
 }
 
-# Synthetic keys emitted. KEY_F13 is deliberately an otherwise-unused key,
-# meant to be bound in Hyprland to the shell IPC call that summons the real
-# launcher once it exists:
-#   quickshell ipc -p $OMARCHY_PATH/shell call shell toggle org.omacrt.launcher '{}'
-# Not wired up automatically here -- that's a Hyprland keybind, out of this
-# daemon's scope.
+# Synthetic keys emitted. KEY_F13/F14 are deliberately otherwise-unused keys,
+# bound in ~/.config/hypr/bindings.lua to the shell IPC calls that summon the
+# launcher and the controller cheatsheet respectively -- this daemon only
+# emits the key; the Hyprland keybind is what actually does something with it.
 KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT = (
     ecodes.KEY_UP,
     ecodes.KEY_DOWN,
@@ -68,6 +66,7 @@ KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT = (
 KEY_CONFIRM = ecodes.KEY_ENTER
 KEY_BACK = ecodes.KEY_ESC
 KEY_TOGGLE_LAUNCHER = ecodes.KEY_F13
+KEY_TOGGLE_CHEATSHEET = ecodes.KEY_F14
 
 # Analog-stick-as-D-pad tuning. The device's own reported deadzone (AbsInfo
 # "flat") is small (~9% on the SN30 Pro) -- fine for analog aiming, too
@@ -210,7 +209,7 @@ class OmaCRTInput:
         self.device = device
         self.layout = LAYOUTS[layout_name]
         self.ui = UInput(
-            {ecodes.EV_KEY: [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_CONFIRM, KEY_BACK, KEY_TOGGLE_LAUNCHER]},
+            {ecodes.EV_KEY: [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_CONFIRM, KEY_BACK, KEY_TOGGLE_LAUNCHER, KEY_TOGGLE_CHEATSHEET]},
             name="omacrt-virtual-keyboard",
         )
         self.repeater = Repeater()
@@ -272,6 +271,10 @@ class OmaCRTInput:
             self._tap(KEY_BACK)
         elif code == ecodes.BTN_MODE:
             self._tap(KEY_TOGGLE_LAUNCHER, gate=False)
+        elif code == ecodes.BTN_SELECT:
+            # Gated normally (unlike Guide) -- this is a help overlay, not
+            # an escape hatch, so it's fine for it to be blocked mid-game.
+            self._tap(KEY_TOGGLE_CHEATSHEET)
 
     def run(self):
         absinfo_cache = {
@@ -288,11 +291,24 @@ class OmaCRTInput:
                     self._handle_stick_axis(event.code, event.value, absinfo_cache[event.code])
 
 
+def write_layout_state(layout_name):
+    # Read by plugins/org.omacrt.cheatsheet's Cheatsheet.qml (and any future
+    # layout-aware QML) so they show the same layout the daemon is actually
+    # using, without duplicating --layout in two places. Not watched for
+    # live updates on the QML side yet since the daemon doesn't support
+    # switching layout without a restart either.
+    state_dir = os.path.join(os.path.expanduser("~"), ".local", "state", "omacrt")
+    os.makedirs(state_dir, exist_ok=True)
+    with open(os.path.join(state_dir, "layout"), "w") as f:
+        f.write(layout_name)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", help="evdev device path, e.g. /dev/input/event5")
     parser.add_argument("--layout", choices=sorted(LAYOUTS), default="xbox")
     args = parser.parse_args()
+    write_layout_state(args.layout)
 
     # A gamepad not being connected right now (asleep, off, not paired yet)
     # is normal, ongoing operating condition for a persistent daemon, not a

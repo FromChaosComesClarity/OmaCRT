@@ -1,11 +1,19 @@
 # omacrt-input
 
 The gamepad-to-keyboard daemon. Reads a gamepad's raw evdev events and emits
-synthetic keyboard events (arrow keys, Enter, Escape, plus one dedicated
-"toggle launcher" key on the Guide button) through a virtual `uinput`
-keyboard, so any keyboard-navigable Quickshell surface can be driven from a
-gamepad today, before the real launcher has its own IPC to call directly
-(see `docs/RESEARCH.md` #2 for the fuller options/decision).
+synthetic keyboard events (arrow keys, Enter, Escape, plus two dedicated
+toggle keys -- Guide for the launcher, Select for the controller cheatsheet)
+through a virtual `uinput` keyboard, so any keyboard-navigable Quickshell
+surface can be driven from a gamepad today, before the real launcher has its
+own IPC to call directly (see `docs/RESEARCH.md` #2 for the fuller
+options/decision). The two toggle keys (F13/F14) only do something because
+`config/bindings.lua` binds them to the corresponding shell IPC calls -- see
+`docs/SETUP.md`.
+
+Also writes `~/.local/state/omacrt/layout` at startup (the active
+`--layout`), so `plugins/org.omacrt.cheatsheet` (and any future layout-aware
+QML) shows the same layout the daemon is actually using without duplicating
+the setting in two places.
 
 Verified working end-to-end on the dev machine (2026-09-20) against a real
 8BitDo SN30 Pro over Bluetooth (needed `xpadneo` for the full button set --
@@ -63,20 +71,28 @@ systemctl --user daemon-reload
 systemctl --user enable --now omacrt-input.service
 ```
 
-It declares `SupplementaryGroups=input` directly in the unit, rather than
-depending on the running user session already having that group active --
-deliberately, after hitting exactly that gap in development (a fresh
-`usermod -aG input` doesn't take effect in an already-open session; see
-`docs/SETUP.md`).
+It relies on the graphical login session already having the `input` group --
+`SupplementaryGroups=` in the unit itself does **not** work for a `--user`
+service (needs system/PID1 privileges; declaring it makes the service fail
+outright rather than being ignored -- learned by hitting it directly). See
+`docs/SETUP.md` for the stale-user-manager failure mode this depends on not
+hitting, and its diagnosis.
+
+Also needs `system/omacrt-uinput-fix.service` (a system-level unit, separate
+install step, see `docs/SETUP.md`) -- without it, `/dev/uinput` reverts to
+`root:root` on every reboot and this service crash-loops until someone
+notices.
 
 ## Not yet built
 
 - Option C from `docs/RESEARCH.md` #2: calling the launcher's own IPC
   directly once it exists, instead of only synthetic keys.
-- Shoulders/triggers/X/Y/Start/Select and the thumbstick clicks are read but
+- Shoulders/triggers/X/Y/Start and the thumbstick clicks are read but
   currently unused -- reserved for launcher-specific gestures once there's a
-  launcher UI to gesture at.
+  launcher UI to gesture at. (Select is used -- toggles the cheatsheet.)
 - Right stick, and using the analog trigger values (not just digital) for
   anything.
 - A user-facing settings surface for the layout choice (currently a CLI
-  flag/systemd-unit edit only).
+  flag/systemd-unit edit only) -- also means switching layout needs a daemon
+  restart; the cheatsheet reads the layout state file at its own startup, not
+  live.

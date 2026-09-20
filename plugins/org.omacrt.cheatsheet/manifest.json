@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "org.omacrt.cheatsheet",
+  "name": "OmaCRT controller cheatsheet",
+  "version": "0.1.0",
+  "author": "OmaCRT",
+  "description": "Meta+K equivalent for the gamepad: an overlay showing what each button currently does, using the active controller layout's glyphs.",
+  "kinds": [
+    "overlay"
+  ],
+  "entryPoints": {
+    "overlay": "Cheatsheet.qml"
+  }
+}
