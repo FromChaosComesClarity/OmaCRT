@@ -3,6 +3,57 @@
 System-level prerequisites, outside the git repo (udev rules and group
 membership are per-machine, not project files). Run once per machine.
 
+## Installing this account's apps (Clarity, EmuLatte, ...)
+
+Cloned as live git checkouts under `~/Games/<App>` (not packaged AppImages)
+— deliberate, since this project edits them to integrate with the CRT/
+launcher over time:
+
+```bash
+mkdir -p ~/Games
+git clone https://github.com/FromChaosComesClarity/Clarity.git ~/Games/Clarity
+git clone https://github.com/FromChaosComesClarity/EmuLatte.git ~/Games/EmuLatte
+cd ~/Games/Clarity && npm install
+cd ~/Games/EmuLatte && npm install
+```
+
+**`npm install` can silently produce a broken Electron install.** Both apps
+hit this on this machine: `npm install` reports success, but
+`node_modules/electron/dist/` ends up with only a few KB of stray files (no
+actual `electron` binary) and no `path.txt` — surfaces only as a crash on
+first launch ("Electron failed to install correctly"). The zip download
+itself was complete and checksum-valid both times
+(`~/.cache/electron/<hash>/electron-v<version>-linux-x64.zip`, ~117MB) — this
+is purely Node's `extract-zip` (used by `@electron/get`/`install.js`) failing
+partway through extraction, not a network problem. Fix, reliable both times:
+
+```bash
+cd ~/Games/<App>
+rm -rf node_modules/electron/dist
+mkdir -p node_modules/electron/dist
+unzip -q ~/.cache/electron/*/electron-v*-linux-x64.zip -d node_modules/electron/dist
+printf 'electron' > node_modules/electron/path.txt   # exact filename index.js looks for in dist/
+node -e "console.log(require('./node_modules/electron'))"   # should print .../dist/electron, not throw
+```
+
+Then launch/verify each app (`npm start`, or `npm start -- --couch` for
+Clarity's gamepad/TV mode), and set up its desktop entry:
+
+`config/applications/*.desktop` in this repo are the working entries for
+this machine (`~/.local/share/applications/`). **The pre-existing
+`clarity.desktop`/`clarity-couch.desktop` on this machine had a real bug**:
+`Exec=` called the electron binary directly with no app-path argument at
+all, which makes Electron show its own built-in demo screen instead of the
+app — no crash, no error, just silently the wrong thing on screen. Fixed by
+appending the absolute app directory as an argument (see
+`docs/PLUGIN_NOTES.md` for the general gotcha). Copy these into place on a
+fresh install:
+
+```bash
+cp config/applications/*.desktop ~/.local/share/applications/
+update-desktop-database ~/.local/share/applications   # if installed; harmless if not
+```
+
 ## Bar / idle config
 
 `config/shell.json` in this repo is the canonical, working copy of

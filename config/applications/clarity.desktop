@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Clarity
+Comment=Your game library, Manager, Installer and Couch in one.
+Exec="/home/jose/Games/Clarity/node_modules/electron/dist/electron" "/home/jose/Games/Clarity"
+Icon=/home/jose/Games/Clarity/apps/manager/icons/Clarity.svg
+Terminal=false
+Categories=Game;Utility;
+StartupWMClass=clarity

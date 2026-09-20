@@ -16,14 +16,24 @@ path, not a replacement.
 
 ## Status
 
-First real milestone done: `plugins/org.omacrt.launcher` is a placeholder
-full-screen overlay plugin, proven working end-to-end on this machine — loads,
-gets a real layer-shell surface (`hyprctl layers` shows it), reads the active
-Omarchy theme's colors/typography live, and draws the broadcast safe-area
-margin. See [`docs/PLUGIN_NOTES.md`](docs/PLUGIN_NOTES.md) for the (undocumented
-elsewhere) gotchas that took to get there. The stock bar is curated down to
-clock/bluetooth/network/volume and captured in [`config/shell.json`](config/shell.json)
-— see [`docs/SETUP.md`](docs/SETUP.md) for how to apply it on a fresh install.
+**The launcher is real now, not a placeholder.**
+[`plugins/org.omacrt.launcher`](plugins/org.omacrt.launcher) is a
+gamepad-navigable, scrollable app list — D-pad/stick moves the highlight,
+confirm launches, back closes — reading Quickshell's own `DesktopEntries`
+directly and launching the same way Omarchy's built-in menu does
+(`gtk-launch` via `uwsm-app`). Shows a curated set (currently Clarity, its
+Couch/gamepad mode, and EmuLatte), not every installed app. Full theme-token
+styling, safe-area margin, live-tested with the real controller. See
+[`docs/PLUGIN_NOTES.md`](docs/PLUGIN_NOTES.md) for the gotchas that took to
+get there, including one unsolved mystery (a documented facade the shell
+provides for exactly this didn't work — worked around, not fixed). The stock
+bar is curated down to clock/bluetooth/network/volume and captured in
+[`config/shell.json`](config/shell.json) — see [`docs/SETUP.md`](docs/SETUP.md)
+for how to apply it on a fresh install.
+
+Clarity and EmuLatte are installed at `~/Games/Clarity` and `~/Games/EmuLatte`
+(live git checkouts, not AppImages — see `docs/SETUP.md`) and launch cleanly
+from the OmaCRT launcher, confirmed on the real CRT.
 
 A gamepad is connected and fully working: an 8BitDo SN30 Pro over Bluetooth,
 including Start/Select/Guide/thumbstick-clicks — which needed the `xpadneo`
@@ -45,10 +55,11 @@ EDID auto-detects, but its "preferred" mode is 1280x720, not our 720×480
 target, so `config/monitors.lua` forces it. User's verdict on the real tube:
 "it looks great." See `docs/SETUP.md` for the forcing recipe.
 
-Not started: the real launcher UI (still just the placeholder overlay), the
-burn-in screensaver. See [`docs/RESEARCH.md`](docs/RESEARCH.md) for the
-brainstorm, the options considered, and the hardware/software facts they're
-based on.
+Not started: the burn-in screensaver, and adapting Clarity/EmuLatte's own UI
+for the CRT (they currently run at their normal desktop UI, just launched
+from OmaCRT — no CRT-specific adaptation yet). See
+[`docs/RESEARCH.md`](docs/RESEARCH.md) for the brainstorm, the options
+considered, and the hardware/software facts they're based on.
 
 ## Hardware profile
 

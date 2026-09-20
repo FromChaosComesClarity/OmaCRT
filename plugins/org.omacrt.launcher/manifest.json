@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "org.omacrt.launcher",
-  "name": "OmaCRT launcher (placeholder)",
-  "version": "0.1.0",
+  "name": "OmaCRT launcher",
+  "version": "0.2.0",
   "author": "OmaCRT",
-  "description": "Placeholder full-screen overlay. Proves the plugin-loading pipeline before the real gamepad-navigable launcher is built.",
+  "description": "Gamepad-navigable app launcher for the CRT. Lists a curated set of apps (Clarity, EmuLatte, ...) and launches them via Quickshell's own DesktopEntries API.",
   "kinds": [
     "overlay"
   ],

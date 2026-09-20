@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Couch (Fullscreen)
+Comment=Clarity in fullscreen, gamepad-first mode, made for the living room / TV.
+Exec="/home/jose/Games/Clarity/node_modules/electron/dist/electron" "/home/jose/Games/Clarity" "--couch"
+Icon=/home/jose/Games/Clarity/apps/manager/icons/Couch.svg
+Terminal=false
+Categories=Game;
+Keywords=couch;tv;living room;gamepad;controller;fullscreen;big picture;bigpicture;clarity;
+StartupWMClass=couch

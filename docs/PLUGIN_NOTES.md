@@ -64,6 +64,67 @@ edited, not the shell generally.
 Reach for this early when a plugin that loads without error still shows
 nothing, rather than continuing to debug the QML.
 
+## The third-party `appLibrary` facade (kind `"menu"`) didn't work — use `DesktopEntries` directly instead
+
+Omarchy's shell has a clean-looking mechanism for exactly what a launcher
+needs: declare `"menu"` as an additional manifest kind (alongside `"overlay"`)
+and the host injects `shell.appLibrary` — a facade over the same desktop-entry
+discovery/launch service the built-in menu uses
+(`services/PluginAppLibraryApi.qml`, gated in `shell.qml` by
+`shell.manifestHasKind(manifest, "menu")`).
+
+**It didn't work in testing, and the cause wasn't found.** `shell` injected
+correctly (a real `PluginShellApi` object), and `item.manifest.kinds` —
+read back from inside the plugin itself — correctly showed
+`["overlay","menu"]`. But `shell.appLibrary` was `null` every time, across a
+full `omarchy restart shell` (ruling out hot-reload wedging) and with no
+warnings anywhere (journalctl, `quickshell log`, nothing). Traced
+`manifestHasKind` and `createScopedPluginShell` in `shell.qml` line by line —
+the logic reads as if it must work — without finding the actual break.
+
+**Don't burn more time on this if you hit it too. The fix that worked:**
+skip the facade entirely and use Quickshell's own primitives directly — the
+same ones `AppLibrary.qml` is built on internally, not Omarchy-specific or
+gated:
+
+```qml
+import Quickshell   // DesktopEntries and Quickshell.iconPath() live here
+import qs.Commons    // Util.execDetached / Util.shellQuote
+
+// List: DesktopEntries.applications.values -- each entry has .id, .name, .icon
+var entries = DesktopEntries.applications.values
+
+// Icon: Quickshell.iconPath(icon, true), with the same file://-path and
+// fallback-to-application-x-executable handling AppLibrary.qml itself does
+
+// Launch: the exact command AppLibrary.launch() uses internally
+Util.execDetached("uwsm-app -- gtk-launch " + Util.shellQuote(entryId + ".desktop"))
+```
+
+No manifest kind needed beyond `"overlay"` — this sidesteps the mystery
+instead of solving it. Revisit if a future Omarchy version fixes whatever
+this was; check `shell.appLibrary` for non-null again before assuming it's
+still broken.
+
+## `.desktop` `Exec=` calling a bare Electron binary shows Electron's own demo app, not your app
+
+If a `.desktop` entry's `Exec=` points straight at
+`node_modules/electron/dist/electron` with no further argument, Electron
+has nothing telling it which app to load and falls back to its built-in
+default/demo screen (the "Electron / Chromium vX / Node vX" splash with
+the atom logo) — no error, no crash, just the wrong app silently. Electron
+needs the app directory as an explicit argument, the same way `electron .`
+does when run from inside the app's own directory:
+
+```ini
+Exec="/path/to/node_modules/electron/dist/electron" "/path/to/the/app"
+```
+
+Hit this exactly with a pre-existing `clarity.desktop`/`clarity-couch.desktop`
+(missing the path entirely) — fixed by appending the absolute app directory
+as a second quoted argument (and after any other flags like `--couch`, matching
+`electron . --couch`'s own argument order).
+
 ## Useful commands for this loop
 
 ```bash
