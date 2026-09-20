@@ -236,6 +236,21 @@ convention + broadcast safe-area standard + interlace):
   whitespace, it's where a real TV crops the picture. This is a layout margin
   OmaCRT's overlay/launcher needs to apply itself; nothing in the shell's
   token system does it automatically.
+
+**Confirmed on the real hardware (2026-09-20): this margin is the *only*
+mitigation available, not a belt-and-suspenders extra.** Checked for a
+compositor/GPU-level fix first rather than assume one doesn't exist:
+Hyprland has no underscan/overscan compensation and the maintainers
+explicitly declined to add it ([issue #277](https://github.com/hyprwm/Hyprland/issues/277),
+closed "not planned"); the DRM-level `underscan` property older X11/xrandr
+TV-out setups used is tied to a GPU's *native* analog TV-out silicon, which
+this Mac Mini's iGPU doesn't have for an HDMI→external-adapter path anyway.
+This CRT also has no accessible service-menu geometry/size controls to
+shrink the raster at the hardware level. So: OmaCRT's own overlays staying
+inside the safe-area margin is the whole story for anything we draw — the
+rest of the desktop (bar edges, ordinary app windows) has no such protection
+and will crop with whatever this specific CRT's overscan happens to be.
+Accepted as expected/unavoidable rather than something to keep chasing.
 - **Confirmed composite → real 480i** (§0.1) makes the interlace-flicker
   guidance load-bearing, not just a nice-to-have: the CRT's own interlaced
   scan (odd lines one pass, even lines the next, 60 fields/sec) means any
