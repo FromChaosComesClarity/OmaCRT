@@ -12,7 +12,9 @@ doc can be read as "what we're building," not just "what we considered."
    target is **480i**, not 480p — composite cannot carry progressive scan at
    all. This is a materially bigger constraint than the rest of the doc
    assumed; see the rewritten §1 and §4 below.
-2. **Bar scope:** clock, network status, and volume. Nothing else needs to
+2. **Bar scope:** clock, network status, volume, and **bluetooth** (added
+   2026-09-20 — needed to pair a gamepad in the first place, and kept
+   permanently rather than pulled after pairing). Nothing else needs to
    survive the cut to 720px-wide TV scale for the first version.
 3. **Gamepad layout:** build a settings option covering **Xbox / PlayStation /
    Nintendo** face-button layouts, each with its own button glyphs shown in
