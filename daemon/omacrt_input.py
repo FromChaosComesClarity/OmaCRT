@@ -294,17 +294,49 @@ def main():
     parser.add_argument("--layout", choices=sorted(LAYOUTS), default="xbox")
     args = parser.parse_args()
 
-    dev = InputDevice(args.device) if args.device else find_gamepad()
-    if dev is None:
-        print("No gamepad found (looked for a device with BTN_SOUTH + ABS axes).", file=sys.stderr)
-        sys.exit(1)
+    # A gamepad not being connected right now (asleep, off, not paired yet)
+    # is normal, ongoing operating condition for a persistent daemon, not a
+    # startup error -- wait for one rather than exiting. (Learned the hard
+    # way: exiting here made systemd's Restart=on-failure crash-loop the
+    # service every couple of seconds, 100+ times, whenever the pad was
+    # simply idle-disconnected.) --device is different: an explicit,
+    # user-given path that doesn't exist is a real misconfiguration worth
+    # failing on immediately.
+    last_logged = 0
+    while True:
+        try:
+            dev = InputDevice(args.device) if args.device else find_gamepad()
+        except FileNotFoundError:
+            if args.device:
+                print(f"Device {args.device} not found.", file=sys.stderr)
+                sys.exit(1)
+            dev = None
+        if dev is not None:
+            break
+        now = time.monotonic()
+        if now - last_logged > 30:
+            print("No gamepad connected -- waiting...", flush=True)
+            last_logged = now
+        time.sleep(2)
 
-    print(f"Using device: {dev.name} ({dev.path}), layout={args.layout}")
-    daemon = OmaCRTInput(dev, args.layout)
-    try:
-        daemon.run()
-    except KeyboardInterrupt:
-        pass
+    print(f"Using device: {dev.name} ({dev.path}), layout={args.layout}", flush=True)
+    while True:
+        daemon = OmaCRTInput(dev, args.layout)
+        try:
+            daemon.run()
+            break  # read_loop() ended cleanly -- shouldn't normally happen
+        except KeyboardInterrupt:
+            break
+        except OSError:
+            # The pad disconnected mid-run. Go back to waiting for one
+            # rather than exiting (same reasoning as above).
+            print("Gamepad disconnected -- waiting for reconnect...", flush=True)
+            while True:
+                dev = InputDevice(args.device) if args.device else find_gamepad()
+                if dev is not None:
+                    break
+                time.sleep(2)
+            print(f"Reconnected: {dev.name} ({dev.path})", flush=True)
 
 
 if __name__ == "__main__":

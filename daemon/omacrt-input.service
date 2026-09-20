@@ -4,6 +4,12 @@ Description=OmaCRT gamepad-to-keyboard input daemon
 # socket to know when a fullscreen app has taken the controller over.
 PartOf=graphical-session.target
 After=graphical-session.target
+# Safety net, not the primary fix -- the primary fix is the daemon itself
+# waiting for a gamepad instead of exiting when one isn't connected (see
+# omacrt_input.py). This just caps things if some *other* crash cause shows
+# up later: stop retrying after 10 failures in 60s rather than indefinitely.
+StartLimitIntervalSec=60
+StartLimitBurst=10
 
 [Service]
 Type=simple
@@ -12,10 +18,14 @@ Type=simple
 ExecStart=/usr/bin/python3 -u %h/Documents/DEVELOPMENT/CLAUDE/OmaCRT/daemon/omacrt_input.py --layout xbox
 Restart=on-failure
 RestartSec=2
-# Grants /dev/uinput + /dev/input/eventN access directly, so this never
-# depends on interactive-login group refresh (see docs/SETUP.md — that
-# dependency is exactly what bit us in development).
-SupplementaryGroups=input
+# NOTE: SupplementaryGroups= does NOT work here -- it requires privileges a
+# `--user` systemd instance doesn't have (setting supplementary groups is a
+# system/PID1-only feature); declaring it makes the service fail outright
+# (systemd exit 216/GROUP) rather than being harmlessly ignored. Learned by
+# hitting it directly: this service instead relies on the graphical login
+# session itself already having the `input` group (see docs/SETUP.md) --
+# true for a normal fresh login, just not for an already-open session from
+# before the group was added.
 
 [Install]
 WantedBy=graphical-session.target
