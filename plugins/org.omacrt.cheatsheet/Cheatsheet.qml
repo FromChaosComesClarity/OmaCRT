@@ -96,7 +96,11 @@ Item {
             { glyph: "↕↔", label: "Navigate", key: "" },
             { glyph: root.glyphs[root.layout].confirm, label: "Select", key: "" },
             { glyph: root.glyphs[root.layout].back, label: "Back", key: "" },
-            { glyph: "⌂", label: "Launcher (works anytime, even mid-game)", key: "" },
+            // Both, and in this order: Start is the one that can be relied on,
+            // Guide is the one people reach for. Listing only Guide was true
+            // right up until the pad stopped sending it.
+            { glyph: "≡", label: "Launcher — Start (works anytime, even mid-game)", key: "" },
+            { glyph: "⌂", label: "Launcher — Guide, where the pad sends it", key: "" },
           ]
 
           delegate: RowLayout {

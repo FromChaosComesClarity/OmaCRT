@@ -205,9 +205,10 @@ class HyprlandFocusWatcher:
 
 
 class OmaCRTInput:
-    def __init__(self, device, layout_name):
+    def __init__(self, device, layout_name, debug=False):
         self.device = device
         self.layout = LAYOUTS[layout_name]
+        self.debug = debug
         self.ui = UInput(
             {ecodes.EV_KEY: [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_CONFIRM, KEY_BACK, KEY_TOGGLE_LAUNCHER, KEY_TOGGLE_CHEATSHEET]},
             name="omacrt-virtual-keyboard",
@@ -265,11 +266,32 @@ class OmaCRTInput:
         # itself -- ignored, our own Repeater handles direction repeat).
         if value != 1:
             return
+        if self.debug:
+            # The device's own name for the button, so the log says BTN_MODE
+            # rather than 316 and can be compared against what this file maps.
+            names = ecodes.bytype[ecodes.EV_KEY].get(code, code)
+            if isinstance(names, (list, tuple)):
+                names = "/".join(names)
+            print(f"button: {names} ({code})", flush=True)
         if code == self.layout["confirm"]:
             self._tap(KEY_CONFIRM)
         elif code == self.layout["back"]:
             self._tap(KEY_BACK)
-        elif code == ecodes.BTN_MODE:
+        elif code in (ecodes.BTN_MODE, ecodes.BTN_START):
+            # ⚠️ Two buttons for one job, deliberately.
+            #
+            # Guide is the right button for this: it is the Home button on
+            # every console ever made, and it is what this daemon has always
+            # emitted for. It is also the one button that cannot be relied on.
+            # It gets claimed below evdev by other software (Steam is the usual
+            # culprit), and on this pad it stopped producing a BTN_MODE event
+            # at all, despite xpadneo advertising the capability. A launcher
+            # you cannot open is not a launcher.
+            #
+            # So Start opens it too. Start is otherwise unused here, it is
+            # where a TV menu has lived since before consoles had a Home
+            # button, and it takes the same ungated path — so there is always a
+            # way back, mid-game and with Guide missing.
             self._tap(KEY_TOGGLE_LAUNCHER, gate=False)
         elif code == ecodes.BTN_SELECT:
             # Gated normally (unlike Guide) -- this is a help overlay, not
@@ -307,6 +329,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", help="evdev device path, e.g. /dev/input/event5")
     parser.add_argument("--layout", choices=sorted(LAYOUTS), default="xbox")
+    # ⚠️ Worth the eight lines it costs. "Button X does nothing" is this
+    # daemon's characteristic bug report, and it has three completely different
+    # causes: the pad never sent it, this daemon does not map it, or the
+    # Hyprland keybind on the other end is missing. Without this, telling them
+    # apart means attaching a separate evdev reader while someone presses the
+    # button — which was done twice before the flag existed.
+    parser.add_argument(
+        "--debug", action="store_true",
+        help="log every button press received, including ones this daemon does not map",
+    )
     args = parser.parse_args()
     write_layout_state(args.layout)
 
@@ -337,7 +369,7 @@ def main():
 
     print(f"Using device: {dev.name} ({dev.path}), layout={args.layout}", flush=True)
     while True:
-        daemon = OmaCRTInput(dev, args.layout)
+        daemon = OmaCRTInput(dev, args.layout, debug=args.debug)
         try:
             daemon.run()
             break  # read_loop() ended cleanly -- shouldn't normally happen

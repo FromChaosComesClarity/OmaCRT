@@ -197,8 +197,8 @@ groups                            # expect "input" listed (after a fresh login)
 
 `config/bindings.lua` in this repo is the canonical copy of
 `~/.config/hypr/bindings.lua` — includes the two OmaCRT-specific binds. The
-daemon only *emits* F13 (Guide) / F14 (Select) as synthetic keys; these
-binds are what actually make them summon the launcher / cheatsheet:
+daemon only *emits* F13 (Start or Guide) / F14 (Select) as synthetic keys;
+these binds are what actually make them summon the launcher / cheatsheet:
 
 ```bash
 cp ~/.config/hypr/bindings.lua ~/.config/hypr/bindings.lua.bak.$(date +%s)  # back up first

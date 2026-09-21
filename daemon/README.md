@@ -2,7 +2,7 @@
 
 The gamepad-to-keyboard daemon. Reads a gamepad's raw evdev events and emits
 synthetic keyboard events (arrow keys, Enter, Escape, plus two dedicated
-toggle keys -- Guide for the launcher, Select for the controller cheatsheet)
+toggle keys -- Start *and* Guide for the launcher, Select for the cheatsheet)
 through a virtual `uinput` keyboard, so any keyboard-navigable Quickshell
 surface can be driven from a gamepad today, before the real launcher has its
 own IPC to call directly (see `docs/RESEARCH.md` #2 for the fuller
@@ -30,9 +30,34 @@ into whatever a game is doing with the same pad. This daemon watches
 Hyprland's active window over its event socket and stops emitting synthetic
 keys the instant that window is fullscreen -- treated as "an app took the
 controller over" without needing a maintained list of which apps count as
-games. The Guide button is the one exception: it always works, so there's
-always a way back to the launcher, matching how a console's Home button
-behaves.
+games. The launcher buttons are the one exception: they always work, so
+there's always a way back, matching how a console's Home button behaves.
+
+### Why two buttons open the launcher
+
+Guide is the right button for it and the one people reach for. It is also the
+one button that cannot be relied on: other software claims it below evdev
+(Steam is the usual culprit), and on the 8BitDo SN30 Pro here it stopped
+producing a `BTN_MODE` event at all — xpadneo still *advertises* the
+capability, which is what makes this confusing to diagnose, since the
+capability list says the button exists whether or not the pad ever sends it.
+
+So **Start** opens the launcher too, on the same ungated path. It is otherwise
+unused, and it is where a TV menu lived before consoles had a Home button.
+
+To find out which of the three possible causes you have — the pad never sent
+it, the daemon does not map it, or the Hyprland keybind is missing — run the
+daemon by hand with `--debug`, which logs every button it receives, including
+unmapped ones:
+
+```bash
+systemctl --user stop omacrt-input
+python3 daemon/omacrt_input.py --layout xbox --debug   # press the button; Ctrl-C when done
+systemctl --user start omacrt-input
+```
+
+No line for the button means the pad or the driver, not this daemon. A line
+with no effect on screen means the keybind (`hyprctl binds | grep -A4 F13`).
 
 ## Layouts
 
