@@ -5,17 +5,31 @@ membership are per-machine, not project files). Run once per machine.
 
 ## Installing this account's apps (Clarity, EmuLatte, ...)
 
-Cloned as live git checkouts under `~/Games/<App>` (not packaged AppImages)
-— deliberate, since this project edits them to integrate with the CRT/
-launcher over time:
+**Two separate locations, and they are not interchangeable:**
+
+| Path | Contents |
+|---|---|
+| `~/Documents/DEVELOPMENT/CLAUDE/<App>/` | source checkouts, for development |
+| `~/Games/Clarity/` | the runtime: **both** AppImages, `GameManagerConfig/` (live library db + artwork), `icons/`, `CUSTOM_MUSIC/` |
+
+`~/Games/ROMS/` and `~/Games/bios/` are pre-existing personal library data —
+leave them alone. When the apps are rebuilt, copy the fresh AppImage into
+`~/Games/Clarity/` (EmuLatte's own `postdist` script already does exactly
+this).
 
 ```bash
-mkdir -p ~/Games
-git clone https://github.com/FromChaosComesClarity/Clarity.git ~/Games/Clarity
-git clone https://github.com/FromChaosComesClarity/EmuLatte.git ~/Games/EmuLatte
-cd ~/Games/Clarity && npm install
-cd ~/Games/EmuLatte && npm install
+git clone https://github.com/FromChaosComesClarity/Clarity.git  ~/Documents/DEVELOPMENT/CLAUDE/Clarity
+git clone https://github.com/FromChaosComesClarity/EmuLatte.git ~/Documents/DEVELOPMENT/CLAUDE/EmuLatte
+cd ~/Documents/DEVELOPMENT/CLAUDE/Clarity  && npm install
+cd ~/Documents/DEVELOPMENT/CLAUDE/EmuLatte && npm install
 ```
+
+**Paths mostly self-heal.** Clarity rewrites `~/.config/clarity/desktop.json`
+on every start with its own `baseDir`/`exec`/`libraryDb`, and its companion
+Omarchy plugins read that descriptor rather than hardcoding anything — so
+after moving an AppImage, launching Clarity once fixes every consumer.
+`.desktop` entries are the exception: regenerate them from Clarity's own
+in-app **Install to Menu**, or rewrite the paths by hand.
 
 **`npm install` can silently produce a broken Electron install.** Both apps
 hit this on this machine: `npm install` reports success, but
@@ -36,23 +50,18 @@ printf 'electron' > node_modules/electron/path.txt   # exact filename index.js l
 node -e "console.log(require('./node_modules/electron'))"   # should print .../dist/electron, not throw
 ```
 
-Then launch/verify each app (`npm start`, or `npm start -- --couch` for
-Clarity's gamepad/TV mode), and set up its desktop entry:
+### Desktop entries
 
-`config/applications/*.desktop` in this repo are the working entries for
-this machine (`~/.local/share/applications/`). **The pre-existing
-`clarity.desktop`/`clarity-couch.desktop` on this machine had a real bug**:
-`Exec=` called the electron binary directly with no app-path argument at
-all, which makes Electron show its own built-in demo screen instead of the
-app — no crash, no error, just silently the wrong thing on screen. Fixed by
-appending the absolute app directory as an argument (see
-`docs/PLUGIN_NOTES.md` for the general gotcha). Copy these into place on a
-fresh install:
+Clarity generates its own menu entries (`clarity`, `clarity-couch`,
+`clarity-emulatte`) through its in-app **Install to Menu** — that is the
+canonical source, so this repo deliberately keeps no copies to drift out of
+sync. They point at the AppImages in `~/Games/Clarity/`.
 
-```bash
-cp config/applications/*.desktop ~/.local/share/applications/
-update-desktop-database ~/.local/share/applications   # if installed; harmless if not
-```
+**Running from source instead of an AppImage used to break these**: `Exec=`
+got the raw electron binary with no app-path argument, so Electron showed its
+own demo screen rather than the app — silently, no error. Fixed upstream in
+Clarity itself (commit `0980870`, `host.selfSpawnArgs` in the launcher-entry
+writers); see `docs/PLUGIN_NOTES.md` for the general shape of that gotcha.
 
 ## Bar / idle config
 
