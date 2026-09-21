@@ -4,13 +4,16 @@ import Quickshell
 import Quickshell.Wayland
 import qs.Commons
 
-// OmaCRT's launcher: a slim, gamepad-navigable TV menu that routes to the
-// existing, production-quality Omarchy plugins for this account's apps
-// (io.github.fromchaoscomesclarity.clarity / .emulatte -- fuzzy search,
-// cover art, EmuLatte's ROMs already merged into Clarity's own list,
-// correct desktop.json-based launching) rather than reimplementing any of
-// that. This plugin's job is just: be the gamepad-first entry point, safe-
-// area aware and TV-scaled, that opens the right thing.
+// OmaCRT's launcher: a slim, gamepad-navigable TV menu that opens the right
+// thing and then gets out of the way. It reimplements nothing -- searching a
+// library, drawing cover art and launching a game all belong to the apps, and
+// the apps already do them well. This plugin is only the gamepad-first entry
+// point: safe-area aware, TV-scaled, and first on screen when the Guide button
+// is pressed.
+//
+// Two kinds of destination, which is why there are two mechanisms below:
+// IPC into an already-loaded sibling plugin (instant, no process start), and
+// starting an app in one of its faces (necessarily a process).
 //
 // Deliberately NOT a DesktopEntries-derived app grid (an earlier version was
 // -- see docs/RESEARCH.md/PLUGIN_NOTES.md for why that approach was dropped
@@ -26,22 +29,60 @@ Item {
   property bool opened: false
   property int currentIndex: 0
 
-  // Each action is a direct IPC call into an already-loaded plugin -- no
-  // app-launching logic lives here at all. "Play something" alone covers
-  // both libraries: Clarity's own fuzzy launcher already merges EmuLatte's
-  // ROMs into the same searchable list.
+  // Finding an app that is installed as an AppImage.
+  //
+  // There is no package manager entry to ask and no fixed path to hardcode:
+  // an AppImage lives wherever the user put it. So each candidate is tried in
+  // turn -- an executable file first, then the same name on PATH -- and the
+  // first one that exists is exec'd. Shell rather than QML because this is
+  // exactly what a shell is for, and because the alternative is a chain of
+  // FileView probes to answer a question `-x` answers in one character.
+  //
+  // ⚠️ The paths are candidates, not configuration. Anyone whose install is
+  // somewhere else adds theirs here or drops a launcher on PATH; nothing
+  // breaks if a candidate is missing, the next one is tried.
+  function launchApp(candidates, args) {
+    var list = candidates.map(function(c) { return '"' + c + '"' }).join(' ')
+    var argv = args.map(function(a) { return '"' + a + '"' }).join(' ')
+    Quickshell.execDetached(["sh", "-c",
+      'for c in ' + list + '; do ' +
+        'if [ -x "$c" ]; then exec "$c" ' + argv + '; fi; ' +
+        'if command -v "$c" >/dev/null 2>&1; then exec "$c" ' + argv + '; fi; ' +
+      'done'])
+  }
+
+  readonly property var clarityPaths:  ["$HOME/Games/Clarity/Clarity.AppImage", "clarity"]
+  readonly property var emulattePaths: ["$HOME/Games/Clarity/EmuLatte.AppImage", "emulatte"]
+
+  /*
+   * The menu.
+   *
+   * CRT Mode leads for both apps, because on this machine it is not a mode, it
+   * is how they are used: a menu built for 480 interlaced lines and a D-pad,
+   * which is what is plugged in. Couch Mode stays below it for the day the
+   * machine is on a panel instead, and "Play something" is Clarity's fuzzy
+   * launcher, which already merges EmuLatte's ROMs into one searchable list.
+   */
   readonly property var menuActions: [
+    {
+      id: "clarity-crt", label: "Clarity — CRT Mode", glyph: "◉",
+      run: function() { root.launchApp(root.clarityPaths, ["--crt"]) }
+    },
+    {
+      id: "emulatte-crt", label: "EmuLatte — CRT Mode", glyph: "⌸",
+      run: function() { root.launchApp(root.emulattePaths, ["--crt"]) }
+    },
     {
       id: "clarity-search", label: "Play something", glyph: "◉",
       run: function() { Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "io.github.fromchaoscomesclarity.clarity"]) }
     },
     {
       id: "clarity-couch", label: "Clarity — Couch Mode", glyph: "◉",
-      run: function() { Quickshell.execDetached(["omarchy-shell", "shell", "call", "io.github.fromchaoscomesclarity.clarity", "couch", ""]) }
+      run: function() { root.launchApp(root.clarityPaths, ["--couch"]) }
     },
     {
       id: "emulatte-couch", label: "EmuLatte — Couch Mode", glyph: "⌸",
-      run: function() { Quickshell.execDetached(["omarchy-shell", "shell", "call", "io.github.fromchaoscomesclarity.emulatte", "couch", ""]) }
+      run: function() { root.launchApp(root.emulattePaths, ["--couch"]) }
     },
   ]
 

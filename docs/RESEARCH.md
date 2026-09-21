@@ -288,6 +288,47 @@ Accepted as expected/unavoidable rather than something to keep chasing.
   small text on OmaCRT surfaces (fine for large fills, risky for a thin
   glyph).
 
+### ⚠️ Electron/Chromium does not lay out in screen pixels here (found 2026-09-20)
+
+Everything above assumes a px in a stylesheet is a pixel on the tube. For a
+Quickshell plugin it is. **For an Electron app it is not**, and the failure is
+silent.
+
+Omarchy exports `GDK_SCALE=2` (`~/.config/hypr/monitors.lua`) for the desktop.
+Chromium reads it and derives a **fractional** device scale factor of its own —
+measured 1.64 on this machine — so a 720×480 window was laid out in a **439×293
+CSS viewport**. Nothing errors and nothing looks broken; the design is just
+quietly 1.64× too big, and ~3 rows of a menu fit where 6 were budgeted.
+
+That is the visible half. The half that matters more for a CRT: a `4px` rule —
+written to be exactly two scanlines, so both interlaced fields draw it — becomes
+6.56 physical pixels on a half-pixel boundary. It strobes at 30Hz, which is the
+precise artefact the 4px floor above exists to prevent. Every measurement in a
+face designed for a fixed raster has to be a whole number of scanlines, and it
+cannot be unless one CSS pixel is one screen pixel.
+
+Two fixes, depending on how the face is hosted:
+
+```js
+// A face that owns its process (Clarity's --crt): opt out, before app ready.
+app.commandLine.appendSwitch('force-device-scale-factor', '1');
+
+// A face sharing a window with others (EmuLatte's CRT Mode): zoom instead, since
+// the switch is process-wide. devicePixelRatio = deviceScaleFactor × zoom, so
+// this lands on 1:1 in one step from whatever zoom the previous face left behind.
+webFrame.setZoomFactor(webFrame.getZoomFactor() / window.devicePixelRatio);
+```
+
+⚠️ Zoom belongs to the **window**, not the page, so a page-swap face must reset
+it to 1 on the way out or the desktop UI comes back at 61%.
+
+This also corrects an earlier note in this project that Electron apps are not
+affected by `GDK_SCALE` the way Steam was. They are. Steam's version of the
+problem was obvious at a glance; this one is not, which is why it survived a
+build and a visual check before being caught by printing `innerWidth` and
+`devicePixelRatio` into the footer of the running app. **When a layout looks
+right but "a bit big", measure the viewport before adjusting the numbers.**
+
 **Remaining open decision:** whether `base-size` gets tuned once by eye and
 left alone, or exposed as an OmaCRT setting that calls `omarchy display text
 size` under the hood so it's adjustable from the couch without a keyboard.
