@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "org.omacrt.screensaver",
+  "name": "OmaCRT screensaver",
+  "version": "0.1.0",
+  "author": "OmaCRT",
+  "description": "Burn-in protection for a CRT: after an idle period, a near-black screen with one slowly drifting, low-luminance element. Replaces Omarchy's terminal screensaver, which is the wrong shape for a tube.",
+  "kinds": [
+    "overlay",
+    "service"
+  ],
+  "entryPoints": {
+    "overlay": "Screensaver.qml",
+    "service": "IdleService.qml"
+  }
+}

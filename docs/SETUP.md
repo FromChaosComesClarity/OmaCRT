@@ -81,6 +81,40 @@ Omarchy install with no prior customization of its own; back up first if the
 target machine already has one worth keeping (see the omarchy skill's own
 guidance on this).
 
+## Screensaver: turn Omarchy's off, because ours replaces it
+
+`org.omacrt.screensaver` and Omarchy's built-in screensaver fire on the same
+idle timer and will race for the screen. Omarchy's is a terminal running `ttfx`
+effects: a fine screensaver for a panel, and close to the opposite of what a
+tube wants — bright, dense with single-pixel detail, drawn everywhere at once
+(`docs/RESEARCH.md` §3 covers what a CRT actually needs).
+
+```bash
+touch ~/.local/state/omarchy/toggles/screensaver-off   # disable Omarchy's
+# delete that file to get it back; `omarchy-launch-screensaver force` still runs it either way
+```
+
+The plugin entry in `config/shell.json` does the rest. Two things worth
+knowing:
+
+- **It declares both `overlay` and `service` kinds, and needs both.** An
+  `overlay` plugin is instantiated *lazily*, on first summon — so an idle timer
+  living inside one does not run until the overlay has already been opened by
+  hand, which for a screensaver means never. Verified here the confusing way
+  round: it worked in every test where it had been summoned once first, and
+  never from a cold shell start. The `service` half (`IdleService.qml`) is
+  loaded when the shell starts and summons the overlay over the shell's IPC.
+- To look at it without waiting four minutes:
+  ```bash
+  omarchy-shell shell toggle org.omacrt.screensaver '{}'
+  ```
+
+DPMS blanking after a longer idle is implemented but **off by default**
+(`blankAfterSeconds: 0` in `Screensaver.qml`). Waking a CRT through an
+HDMI→composite converter depends on the adapter re-syncing, and this project's
+adapter has not been proven to do that reliably — turn it on only after testing
+that the picture comes back on your own hardware.
+
 ## Display: forcing the CRT's actual resolution
 
 **Confirmed working on the real hardware (2026-09-20).** The HDMI→composite
