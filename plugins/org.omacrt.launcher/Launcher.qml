@@ -81,17 +81,315 @@ Item {
     Quickshell.execDetached([root.terminal, "--title", "OmaCRT", "sh", "-c", command])
   }
 
+  // ── The app list: discovered, pinned, hidden ────────────────────
+  //
+  // Three sources feed the app rows, and they are deliberately different kinds
+  // of thing:
+  //
+  //   1. Clarity and EmuLatte, above — this machine's own apps, hardcoded,
+  //      because they are the reason the TV is on.
+  //   2. ~/Applications/*.AppImage — discovered, never stored. The folder *is*
+  //      the configuration: drop an AppImage in and it is a menu row the next
+  //      time the menu opens, with no edit here and no shell restart. Nothing
+  //      in this group can be deleted from the menu, only hidden, and hiding is
+  //      a reversible line in `hidden` below.
+  //   3. Pinned desktop entries — anything installed, chosen once in "Add app"
+  //      and stored by desktop id.
+  //
+  // State lives in ~/.config/omacrt/launcher.json:
+  //
+  //   { "version": 1,
+  //     "pinned": [ { "id": "org.kde.krita", "label": "Krita" } ],
+  //     "hidden": [ "/home/jose/Applications/Something.AppImage" ] }
+  //
+  // ~/.config rather than ~/.local/state because every line of it is a choice
+  // the user made on purpose — it is configuration worth backing up, not
+  // reconstructible cache.
+  readonly property string homeDir:   Quickshell.env("HOME")
+  readonly property string appsDir:   root.homeDir + "/Applications"
+  readonly property string stateDir:  root.homeDir + "/.config/omacrt"
+  readonly property string statePath: root.stateDir + "/launcher.json"
+
+  property var appImages: []    // discovered: [{ path, label }]
+  property var pinnedApps: []   // persisted:  [{ id, label }]
+  property var hiddenPaths: []  // persisted:  absolute AppImage paths
+
+  /*
+   * ⚠️ `find` rather than a QML FolderListModel, for one reason: the test that
+   * decides whether a row should exist is `-executable`, and Qt's directory
+   * models cannot ask it. An AppImage that lost its +x bit is not an app, it is
+   * a 120 MB file that will fail silently when selected.
+   *
+   * `*_old.AppImage` is this project's convention for a version kept back
+   * during an upgrade, so it is excluded by name rather than shown as a second,
+   * near-identical row.
+   */
+  Process {
+    id: appImageScan
+    command: ["sh", "-c",
+      'd="$1"; [ -d "$d" ] || exit 0; ' +
+      'find -L "$d" -maxdepth 1 -type f -name "*.AppImage" ' +
+        '! -name "*_old.AppImage" -executable -print 2>/dev/null | LC_ALL=C sort -f',
+      "sh", root.appsDir]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var found = []
+        var lines = String(text || "").split("\n")
+        for (var i = 0; i < lines.length; i++) {
+          var path = lines[i].trim()
+          if (!path) continue
+          var base = path.split("/").pop()
+          found.push({ path: path, label: base.replace(/\.AppImage$/, "") })
+        }
+        root.appImages = found
+        root.rebuild()
+      }
+    }
+  }
+
+  function scanAppImages() {
+    if (!appImageScan.running) appImageScan.running = true
+  }
+
+  Process { id: ensureStateDir; command: ["mkdir", "-p", root.stateDir] }
+
+  FileView {
+    id: stateFile
+    path: root.statePath
+    watchChanges: false
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.loadState(text())
+    // ⚠️ First run: the file does not exist. Without this branch the load never
+    // completes, and a hand-edited or missing file would leave the menu with no
+    // pinned apps and no way to notice why.
+    onLoadFailed: root.loadState("")
+  }
+
+  // A corrupt file is worth a warning and nothing more. The menu still works
+  // without its saved list; refusing to open would be the worse failure.
+  function loadState(raw) {
+    var pinned = []
+    var hidden = []
+    var body = String(raw || "").trim()
+    if (body) {
+      try {
+        var parsed = JSON.parse(body)
+        var p = parsed ? parsed.pinned : null
+        if (p && p.length !== undefined) {
+          for (var i = 0; i < p.length; i++) {
+            var id = root.normalizeDesktopId(p[i] ? p[i].id : "")
+            if (id) pinned.push({ id: id, label: String((p[i] && p[i].label) || id) })
+          }
+        }
+        var h = parsed ? parsed.hidden : null
+        if (h && h.length !== undefined) {
+          for (var j = 0; j < h.length; j++) {
+            var path = String(h[j] || "").trim()
+            if (path) hidden.push(path)
+          }
+        }
+      } catch (e) {
+        console.warn("omacrt-launcher: ignoring unreadable " + root.statePath + ":", e)
+      }
+    }
+    root.pinnedApps = pinned
+    root.hiddenPaths = hidden
+    root.rebuild()
+  }
+
+  // ⚠️ mkdir is a separate process, so the write cannot follow it in the same
+  // tick — the first ever save would land in a directory that does not exist
+  // yet and be dropped without a word. The timer buys mkdir its tick, and
+  // coalesces a burst of toggles into one write for free.
+  function saveState() {
+    ensureStateDir.running = true
+    saveTimer.restart()
+  }
+
+  Timer {
+    id: saveTimer
+    interval: 150
+    repeat: false
+    onTriggered: stateFile.setText(JSON.stringify({
+      version: 1,
+      pinned: root.pinnedApps,
+      hidden: root.hiddenPaths
+    }, null, 2) + "\n")
+  }
+
+  function normalizeDesktopId(id) {
+    var value = String(id || "").trim()
+    if (value.slice(-8) === ".desktop") value = value.slice(0, -8)
+    return value
+  }
+
+  /*
+   * Installed applications, straight from Quickshell.
+   *
+   * ⚠️ Not through `shell.appLibrary`. Omarchy's `"menu"` plugin kind is meant
+   * to inject exactly this service and it hands back null on this machine, with
+   * no warning anywhere — see docs/PLUGIN_NOTES.md before spending an evening
+   * on it. `DesktopEntries` is what that service is built on anyway, so this
+   * loses nothing.
+   */
+  function desktopEntries() {
+    var values = []
+    try { values = DesktopEntries.applications.values || [] } catch (e) { return [] }
+    var out = []
+    for (var i = 0; i < values.length; i++) {
+      var entry = values[i]
+      if (!entry || entry.noDisplay === true) continue
+      var id = root.normalizeDesktopId(entry.id)
+      if (!id) continue
+      out.push({ id: id, label: String(entry.name || id) })
+    }
+    out.sort(function(a, b) {
+      var x = a.label.toLowerCase(), y = b.label.toLowerCase()
+      return x < y ? -1 : x > y ? 1 : 0
+    })
+    return out
+  }
+
+  function isHidden(path) { return root.hiddenPaths.indexOf(path) >= 0 }
+
+  function isPinned(id) {
+    for (var i = 0; i < root.pinnedApps.length; i++) if (root.pinnedApps[i].id === id) return true
+    return false
+  }
+
+  function pinApp(entry) {
+    if (!entry || !entry.id || root.isPinned(entry.id)) return
+    var next = root.pinnedApps.slice()
+    next.push({ id: entry.id, label: entry.label })
+    root.pinnedApps = next
+    root.saveState()
+    root.rebuild()
+  }
+
+  function unpinApp(id) {
+    var next = []
+    for (var i = 0; i < root.pinnedApps.length; i++) {
+      if (root.pinnedApps[i].id !== id) next.push(root.pinnedApps[i])
+    }
+    root.pinnedApps = next
+    root.saveState()
+    root.rebuild()
+  }
+
+  function toggleHidden(path) {
+    var next = root.hiddenPaths.slice()
+    var at = next.indexOf(path)
+    if (at >= 0) next.splice(at, 1)
+    else next.push(path)
+    root.hiddenPaths = next
+    root.saveState()
+    root.rebuild()
+  }
+
+  // An AppImage is just an executable. execArgv keeps the path in a positional
+  // parameter, so a space or a quote in a filename stays literal.
+  function launchPath(path) { Util.execArgv([path]) }
+
+  // The exact command Omarchy's own AppLibrary.launch() runs, so a pinned app
+  // starts in the same systemd scope as one started from the system menu, and
+  // ids with dots in them (org.telegram.desktop) still resolve.
+  function launchDesktop(id) {
+    Util.execDetached("uwsm-app -- gtk-launch " + Util.shellQuote(id + ".desktop"))
+  }
+
   // ── Menus ──────────────────────────────────────────────────────────────────
 
   function rootRows() {
-    return [
+    var list = [
       { label: "Clarity",       glyph: "◉", detail: "CRT",  run: function() { root.launchApp(root.clarityPaths, ["--crt"]); root.close() } },
       { label: "EmuLatte",      glyph: "⌸", detail: "CRT",  run: function() { root.launchApp(root.emulattePaths, ["--crt"]); root.close() } },
-      { label: "Play something", glyph: "⌕", detail: "",    run: function() { root.run(["omarchy-shell", "shell", "toggle", "io.github.fromchaoscomesclarity.clarity"]); root.close() } },
-      { label: "Sound",     glyph: "◀", detail: root.volText, submenu: "sound" },
-      { label: "Network",   glyph: "≋", detail: root.netText, submenu: "network" },
-      { label: "Bluetooth", glyph: "✳", detail: root.btText || (root.btPowered ? "ON" : "OFF"), submenu: "bluetooth" },
     ]
+
+    // Discovered AppImages before pinned system apps: ~/Applications is where
+    // this machine's own builds land, and they are what someone turning the TV
+    // on is reaching for.
+    for (var i = 0; i < root.appImages.length; i++) {
+      (function(app) {
+        if (root.isHidden(app.path)) return
+        list.push({ label: app.label, glyph: "▣", detail: "",
+          run: function() { root.launchPath(app.path); root.close() } })
+      })(root.appImages[i])
+    }
+
+    for (var j = 0; j < root.pinnedApps.length; j++) {
+      (function(app) {
+        list.push({ label: app.label, glyph: "◈", detail: "",
+          run: function() { root.launchDesktop(app.id); root.close() } })
+      })(root.pinnedApps[j])
+    }
+
+    list.push({ label: "Play something", glyph: "⌕", detail: "",    run: function() { root.run(["omarchy-shell", "shell", "toggle", "io.github.fromchaoscomesclarity.clarity"]); root.close() } })
+    list.push({ label: "Sound",     glyph: "◀", detail: root.volText, submenu: "sound" })
+    list.push({ label: "Network",   glyph: "≋", detail: root.netText, submenu: "network" })
+    list.push({ label: "Bluetooth", glyph: "✳", detail: root.btText || (root.btPowered ? "ON" : "OFF"), submenu: "bluetooth" })
+    // Last, and in this order: the two rows that change the menu itself belong
+    // below the rows that use it.
+    list.push({ label: "Add app",    glyph: "+", detail: "", submenu: "addapp" })
+    list.push({ label: "Remove app", glyph: "−", detail: "", submenu: "removeapp" })
+    return list
+  }
+
+  /*
+   * Every installed application, in one flat list, driven by a d-pad. Nothing
+   * clever: already-pinned entries are dropped rather than greyed out, because
+   * the list is long enough without rows that cannot be chosen, and a letter
+   * key jumps through it (see jumpToLetter).
+   */
+  function addAppRows() {
+    var entries = root.desktopEntries()
+    var list = []
+    for (var i = 0; i < entries.length; i++) {
+      (function(entry) {
+        if (root.isPinned(entry.id)) return
+        list.push({ label: entry.label, glyph: "+", detail: "",
+          // Back to the root menu, landing *on* the app that was just pinned
+          // rather than back on "Add app" — the confirmation is the row itself,
+          // highlighted, where it will be from now on.
+          run: function() { root.pinApp(entry); root.goBack(); root.selectRowByLabel(entry.label) } })
+      })(entries[i])
+    }
+    if (!list.length) list.push({ label: "No applications found", glyph: "·", detail: "", disabled: true })
+    return list
+  }
+
+  /*
+   * Removal, and the reason this is one menu rather than two.
+   *
+   * A pinned entry is a line in a JSON file, so removing it removes it. A
+   * discovered AppImage is a 120 MB file the user put in a folder, and a menu
+   * that appeared to delete it would be lying about which one it did. So those
+   * rows toggle shown/hidden instead, hidden ones stay listed, and getting one
+   * back is the same single press that hid it — which is what makes hiding
+   * safe to offer at all.
+   */
+  function removeAppRows() {
+    var list = []
+    for (var i = 0; i < root.pinnedApps.length; i++) {
+      (function(app) {
+        list.push({ label: app.label, glyph: "−", detail: "REMOVE", keep: true,
+          run: function() { root.unpinApp(app.id) } })
+      })(root.pinnedApps[i])
+    }
+    for (var j = 0; j < root.appImages.length; j++) {
+      (function(app) {
+        var hidden = root.isHidden(app.path)
+        list.push({
+          label: app.label,
+          glyph: hidden ? "○" : "●",
+          detail: hidden ? "HIDDEN" : "SHOWN",
+          keep: true,
+          run: function() { root.toggleHidden(app.path) }
+        })
+      })(root.appImages[j])
+    }
+    if (!list.length) list.push({ label: "Nothing to remove", glyph: "·", detail: "", disabled: true })
+    return list
   }
 
   // Volume goes through Omarchy's own helper rather than wpctl directly, so a
@@ -158,10 +456,61 @@ Item {
     if (id === "sound")     return soundRows()
     if (id === "network")   return networkRows()
     if (id === "bluetooth") return bluetoothRows()
+    if (id === "addapp")    return addAppRows()
+    if (id === "removeapp") return removeAppRows()
     return rootRows()
   }
 
-  function rebuild() { root.rows = buildRows(root.menuId) }
+  readonly property var menuTitles: ({
+    "root":      "OmaCRT",
+    "sound":     "OmaCRT › Sound",
+    "network":   "OmaCRT › Network",
+    "bluetooth": "OmaCRT › Bluetooth",
+    "addapp":    "OmaCRT › Add app",
+    "removeapp": "OmaCRT › Remove app"
+  })
+
+  function rebuild() {
+    root.rows = buildRows(root.menuId)
+    // ⚠️ A menu can get shorter under the cursor — unpinning the last app in
+    // "Remove app" does exactly that. Without the clamp the selection points
+    // past the end and the next keypress acts on nothing.
+    if (root.currentIndex >= root.rows.length) root.currentIndex = Math.max(0, root.rows.length - 1)
+    root.syncView()
+  }
+
+  /*
+   * Put the viewport back where the selection is.
+   *
+   * ⚠️ The ListView's own onCurrentIndexChanged is not enough, twice over.
+   * Replacing the model does not change currentIndex, so a menu that comes back
+   * with its selection already below the fold (pin an app, land back on it nine
+   * rows down) draws from the top with nothing highlighted. And a jump to a
+   * row whose delegate does not exist yet — pressing "z" in a list of 250
+   * applications — asks the view to scroll somewhere it has not laid out, and
+   * it quietly does nothing: hence forceLayout() first.
+   *
+   * The one-shot timer rather than Qt.callLater because restart() collapses a
+   * burst (open a menu, then immediately jump) into the single last request,
+   * instead of letting the menu's own scroll-to-top land after the jump.
+   */
+  function syncView() { viewSyncTimer.restart() }
+
+  Timer {
+    id: viewSyncTimer
+    interval: 1
+    repeat: false
+    onTriggered: {
+      actionList.forceLayout()
+      actionList.positionViewAtIndex(root.currentIndex, ListView.Contain)
+    }
+  }
+
+  function selectRowByLabel(label) {
+    for (var i = 0; i < root.rows.length; i++) {
+      if (root.rows[i].label === label) { root.currentIndex = i; root.syncView(); return }
+    }
+  }
 
   function showMenu(id) {
     var stack = root.menuStack.slice()
@@ -198,6 +547,25 @@ Item {
       if (!root.rows[i].disabled) break
     }
     root.currentIndex = i
+    root.syncView()
+  }
+
+  // A d-pad through every installed application is a long way down. Typing a
+  // letter jumps to the next row starting with it: free on the keyboard half of
+  // "gamepad or keyboard", and it costs the gamepad half nothing, because no
+  // gamepad button produces a letter.
+  function jumpToLetter(ch) {
+    var c = String(ch || "").toLowerCase()
+    if (!c || !root.rows.length) return
+    for (var n = 1; n <= root.rows.length; n++) {
+      var i = (root.currentIndex + n) % root.rows.length
+      var row = root.rows[i]
+      if (row && !row.disabled && String(row.label || "").toLowerCase().charAt(0) === c) {
+        root.currentIndex = i
+        root.syncView()
+        return
+      }
+    }
   }
 
   // ── Status ─────────────────────────────────────────────────────────────────
@@ -341,13 +709,24 @@ Item {
     root.menuStack = []
     root.currentIndex = 0
     root.refreshStatus()
+    // The folder is the configuration, so it is re-read every single open. A
+    // newly dropped AppImage is a row on the next SUPER+M — no restart, no
+    // edit here. It costs one `find` over one directory.
+    root.scanAppImages()
     root.rebuild()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
   function close() { root.opened = false }
 
-  Component.onCompleted: root.rebuild()
+  Component.onCompleted: {
+    ensureStateDir.running = true
+    root.scanAppImages()
+    root.rebuild()
+    // After mkdir has had a tick: FileView cannot load from a directory that
+    // does not exist, and on a first run this is that directory.
+    Qt.callLater(function() { stateFile.reload() })
+  }
 
   PanelWindow {
     id: panel
@@ -382,14 +761,31 @@ Item {
           root.activate(); event.accepted = true
         } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Left || event.key === Qt.Key_Backspace) {
           root.goBack(); event.accepted = true
+        } else if (event.key === Qt.Key_PageDown) {
+          root.moveSelection(5); event.accepted = true
+        } else if (event.key === Qt.Key_PageUp) {
+          root.moveSelection(-5); event.accepted = true
+        } else if (event.text && /^[A-Za-z0-9]$/.test(event.text)) {
+          root.jumpToLetter(event.text); event.accepted = true
         }
       }
 
-      // Action-safe area: ~5% a side, per docs/RESEARCH.md §4. Not decoration —
-      // it is where the tube stops showing the signal.
+      /*
+       * The safe area. Not decoration — it is where the tube stops showing the
+       * signal (docs/RESEARCH.md §4).
+       *
+       * ⚠️ Asymmetric, and deeper at the top than the 5% broadcast standard,
+       * because this set is: at 5% the title and the clock were still behind
+       * the bezel on the real screen while everything below them was fine.
+       * Broadcast-safe is a floor for an unknown set, not a measurement of
+       * yours. 10% top is what this tube actually needs.
+       */
       Item {
         anchors.fill: parent
-        anchors.margins: Math.round(Math.min(parent.width, parent.height) * 0.05)
+        anchors.leftMargin: Math.round(parent.width * 0.05)
+        anchors.rightMargin: Math.round(parent.width * 0.05)
+        anchors.topMargin: Math.round(parent.height * 0.10)
+        anchors.bottomMargin: Math.round(parent.height * 0.06)
 
         ColumnLayout {
           anchors.fill: parent
@@ -403,10 +799,7 @@ Item {
             spacing: Style.space(16)
 
             Text {
-              text: root.menuId === "root" ? "OmaCRT"
-                  : root.menuId === "sound" ? "OmaCRT › Sound"
-                  : root.menuId === "network" ? "OmaCRT › Network"
-                  : "OmaCRT › Bluetooth"
+              text: root.menuTitles[root.menuId] || "OmaCRT"
               color: Color.foreground
               font.family: Style.font.family
               font.pixelSize: Style.font.heading

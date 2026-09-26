@@ -21,8 +21,12 @@ path, not a replacement.
 gamepad-navigable, scrollable app list — D-pad/stick moves the highlight,
 confirm launches, back closes — reading Quickshell's own `DesktopEntries`
 directly and launching the same way Omarchy's built-in menu does
-(`gtk-launch` via `uwsm-app`). Shows a curated set (currently Clarity, its
-Couch/gamepad mode, and EmuLatte), not every installed app. Full theme-token
+(`gtk-launch` via `uwsm-app`). The list is Clarity and EmuLatte, plus every
+executable `*.AppImage` in `~/Applications` (discovered on each open, so
+dropping one in is the whole install step), plus anything pinned from the
+installed-applications list via **Add app**. **Remove app** unpins those, and
+hides or restores a discovered AppImage without touching the file. The pinned
+and hidden lists live in `~/.config/omacrt/launcher.json`. Full theme-token
 styling, safe-area margin, live-tested with the real controller. See
 [`docs/PLUGIN_NOTES.md`](docs/PLUGIN_NOTES.md) for the gotchas that took to
 get there, including one unsolved mystery (a documented facade the shell
@@ -60,6 +64,22 @@ for the CRT (they currently run at their normal desktop UI, just launched
 from OmaCRT — no CRT-specific adaptation yet). See
 [`docs/RESEARCH.md`](docs/RESEARCH.md) for the brainstorm, the options
 considered, and the hardware/software facts they're based on.
+
+## Companion apps
+
+Apps built to run *inside* this interface live in their own repos, because the
+shell and a media application are different layers — and because nothing that
+decodes video can be an Omarchy plugin at all: `omarchy-shell` is one shared
+Quickshell process with no video sink to render into.
+
+- **[OmaDVD-Player](https://github.com/FromChaosComesClarity/OmaDVD-Player)** —
+  a DVD player for the tube. mpv is both the engine and the interface, so the
+  whole player is one process on a 4 GB box. Ships as a self-contained AppImage
+  with `libdvdcss` bundled. Drop it in `~/Applications` and the launcher finds
+  it.
+
+Clarity and EmuLatte keep their hardcoded rows here, since they take a `--crt`
+flag the launcher has to know about.
 
 ## Hardware profile
 
