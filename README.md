@@ -78,6 +78,12 @@ Quickshell process with no video sink to render into.
   with `libdvdcss` bundled. Drop it in `~/Applications` and the launcher finds
   it.
 
+- **[OmaMedia-Player](https://github.com/FromChaosComesClarity/OmaMedia-Player)** —
+  a media player for the same screen. Browses the optical drive, any mounted USB
+  volume and your own folders, and plays what it finds, with multi-track audio,
+  subtitles and the same picture controls. Hands a Video DVD over to OmaDVD
+  rather than reimplementing it — each app does one job.
+
 Clarity and EmuLatte keep their hardcoded rows here, since they take a `--crt`
 flag the launcher has to know about.
 
