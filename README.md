@@ -84,6 +84,12 @@ Quickshell process with no video sink to render into.
   subtitles and the same picture controls. Hands a Video DVD over to OmaDVD
   rather than reimplementing it — each app does one job.
 
+- **[OmaCD-Player](https://github.com/FromChaosComesClarity/OmaCD-Player)** —
+  an audio CD player. The one disc format that can be identified exactly: the
+  MusicBrainz DiscID is a hash of the table of contents, so the album, the year
+  and every track name come back without guessing. Gamepad-driven, with a
+  screensaver that drifts the sleeve across a black screen.
+
 Clarity and EmuLatte keep their hardcoded rows here, since they take a `--crt`
 flag the launcher has to know about.
 
